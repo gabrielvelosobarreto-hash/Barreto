@@ -1,0 +1,6 @@
+{
+  "name": "Barreto App",
+  "description": "Sistema residencial inteligente para gestão de compras, setores, prioridades e controle de manutenções com visão macro e micro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
