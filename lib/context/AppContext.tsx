@@ -451,87 +451,19 @@ const INITIAL_SECTORS: Sector[] = [
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedTheme = localStorage.getItem('barreto-theme') as ThemeMode | null;
-        if (savedTheme === 'light' || savedTheme === 'dark') {
-          return savedTheme;
-        }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return 'dark';
-        }
-      } catch {
-        // fallback to default
-      }
-    }
-    return 'light';
-  });
+  const [isMounted, setIsMounted] = useState(false);
+  
+  const [theme, setThemeState] = useState<ThemeMode>('light');
 
-  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedShopping = localStorage.getItem('barreto-shopping-items');
-        if (savedShopping) {
-          const parsed = JSON.parse(savedShopping);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_SHOPPING_ITEMS;
-  });
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(INITIAL_SHOPPING_ITEMS);
 
-  const [priorityItems, setPriorityItems] = useState<PriorityItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedPriority = localStorage.getItem('barreto-priority-items');
-        if (savedPriority) {
-          const parsed = JSON.parse(savedPriority);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_PRIORITY_ITEMS;
-  });
+  const [priorityItems, setPriorityItems] = useState<PriorityItem[]>(INITIAL_PRIORITY_ITEMS);
 
-  const [maintenances, setMaintenances] = useState<MaintenanceItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedMaintenances = localStorage.getItem('barreto-maintenances');
-        if (savedMaintenances) {
-          const parsed = JSON.parse(savedMaintenances);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_MAINTENANCE_ITEMS;
-  });
+  const [maintenances, setMaintenances] = useState<MaintenanceItem[]>(INITIAL_MAINTENANCE_ITEMS);
 
-  const [rawSectors, setRawSectors] = useState<Sector[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedSectors = localStorage.getItem('barreto-sectors');
-        if (savedSectors) {
-          const parsed = JSON.parse(savedSectors);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_SECTORS;
-  });
+  const [rawSectors, setRawSectors] = useState<Sector[]>(INITIAL_SECTORS);
 
-  const [shoppingCategories, setShoppingCategories] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedCategories = localStorage.getItem('barreto-shopping-categories');
-        if (savedCategories) {
-          const parsed = JSON.parse(savedCategories);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return ['Alimentos', 'Limpeza', 'Higiene', 'Eletrônicos', 'Sem categoria'];
-  });
+  const [shoppingCategories, setShoppingCategories] = useState<string[]>(['Alimentos', 'Limpeza', 'Higiene', 'Eletrônicos', 'Sem categoria']);
 
 
   const [sectorItemsMap, setSectorItemsMap] = useState<Record<number, SectorItem[]>>(() => {

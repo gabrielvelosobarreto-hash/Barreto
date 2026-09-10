@@ -109,6 +109,7 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
     if (targetSectorId) {
       const sector = sectors.find(s => s.id === targetSectorId);
       if (sector) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailsSector(sector);
         if (targetItemId) {
           setTimeout(() => {
