@@ -86,17 +86,6 @@ export default function DashboardView({ onNavigate }: { onNavigate: (t: TabType,
       {/* Top Header com Botão de Destaque para Manutenções */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              {basicProfile?.residenceName ? `${basicProfile.residenceName} • ${basicProfile.residenceType}` : 'Residência Privativa'}
-            </span>
-            {basicProfile?.fullName && (
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                por {basicProfile.fullName}
-              </span>
-            )}
-          </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Painel Principal</h1>
           <p className="mt-1 text-slate-500 dark:text-slate-400">Resumo executivo, controle de compras e status das abas da casa em tempo real.</p>
         </div>

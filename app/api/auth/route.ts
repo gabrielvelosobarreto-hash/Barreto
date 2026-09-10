@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readServerStore, writeServerStore } from '@/lib/serverStorage';
+import { readServerStore, writeServerStore, getUserAccount, saveUserAccount, UserAccount } from '@/lib/serverStorage';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
   try {
     const store = readServerStore();
+    const { searchParams } = new URL(req.url);
+    const username = searchParams.get('username') || 'barreto';
+    const user = getUserAccount(username) || store.users['barreto'];
+
+    const availableUsers = Object.keys(store.users).map((key) => ({
+      username: store.users[key].username,
+      name: store.users[key].name,
+      residenceName: store.users[key].basicProfile?.residenceName || '',
+    }));
+
     return NextResponse.json({
       success: true,
-      authConfig: store.authConfig || null,
-      basicProfile: store.basicProfile || null,
+      user: user || null,
+      availableUsers,
     });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: 'Failed to read server auth store' },
+      { success: false, error: 'Falha ao consultar autenticação no servidor' },
       { status: 500 }
     );
   }
@@ -24,76 +36,137 @@ export async function POST(req: NextRequest) {
     const store = readServerStore();
 
     if (action === 'verify-login') {
-      const { pin } = body;
-      const serverPin = store.authConfig?.pin;
-      
-      // If server has a pin configured:
-      if (serverPin && serverPin === pin) {
+      const inputUsername = (body.username || 'barreto').trim().toLowerCase();
+      const inputPin = (body.pin || '').trim();
+
+      const user = getUserAccount(inputUsername);
+
+      if (!user) {
         return NextResponse.json({
-          success: true,
-          authenticated: true,
-          authConfig: store.authConfig,
-          basicProfile: store.basicProfile,
+          success: false,
+          authenticated: false,
+          notFound: true,
+          error: `Usuário "${body.username}" não encontrado. Verifique o usuário digitado ou crie um novo perfil.`,
         });
       }
 
-      // If server has default placeholder '1234' or no pin yet, and client entered something:
-      // Also check if pin matches '1234'
-      if (!serverPin && pin === '1234') {
+      // Check if password matches
+      if (user.pin === inputPin) {
         return NextResponse.json({
           success: true,
           authenticated: true,
-          authConfig: store.authConfig || { name: 'Gabriel Veloso Barreto', pin: '1234', rememberMe: true },
-          basicProfile: store.basicProfile,
+          user,
+        });
+      }
+
+      // Also allow '1234' fallback if user has default '1234'
+      if (user.pin === '1234' && inputPin === '1234') {
+        return NextResponse.json({
+          success: true,
+          authenticated: true,
+          user,
         });
       }
 
       return NextResponse.json({
         success: false,
         authenticated: false,
-        serverHasPin: Boolean(serverPin && serverPin !== '1234'),
-        error: 'Senha incorreta',
+        error: `Senha incorreta para o usuário "${user.name || user.username}".`,
       });
     }
 
-    if (action === 'set-password' || action === 'reset-password') {
-      const { newPin, newHint, name } = body;
-      if (!newPin || typeof newPin !== 'string' || newPin.trim().length === 0) {
+    if (action === 'register-user' || action === 'set-password' || action === 'reset-password') {
+      const username = (body.username || 'barreto').trim().toLowerCase();
+      const newPin = (body.newPin || body.pin || '').trim();
+      const fullName = (body.name || body.fullName || '').trim();
+      const residenceName = (body.residenceName || 'Arniqueiras').trim();
+      const residenceType = (body.residenceType || 'Casa').trim();
+      const newHint = body.newHint || body.hint || '';
+
+      if (!newPin || newPin.length < 4) {
         return NextResponse.json(
-          { success: false, error: 'Senha inválida' },
+          { success: false, error: 'A senha deve conter no mínimo 4 dígitos/caracteres.' },
           { status: 400 }
         );
       }
 
-      const updatedAuth = {
-        name: name || store.authConfig?.name || 'Gabriel Veloso Barreto',
-        pin: newPin.trim(),
-        hint: newHint !== undefined ? newHint : store.authConfig?.hint || '',
+      const existingUser = getUserAccount(username);
+      const userToSave: UserAccount = {
+        username,
+        name: fullName || existingUser?.name || 'Gabriel Veloso Barreto',
+        pin: newPin,
+        hint: newHint,
         rememberMe: true,
+        basicProfile: {
+          fullName: fullName || existingUser?.basicProfile?.fullName || 'Gabriel Veloso Barreto',
+          residenceName: residenceName || existingUser?.basicProfile?.residenceName || 'Arniqueiras',
+          residenceType: residenceType || existingUser?.basicProfile?.residenceType || 'Casa',
+          phone: existingUser?.basicProfile?.phone || '',
+          cityState: existingUser?.basicProfile?.cityState || 'Brasília - DF',
+          address: existingUser?.basicProfile?.address || '',
+          notes: existingUser?.basicProfile?.notes || '',
+          isCompleted: true,
+          completedAt: new Date().toISOString(),
+        },
+        sectors: existingUser?.sectors || [],
+        sectorItemsMap: existingUser?.sectorItemsMap || {},
+        shoppingItems: existingUser?.shoppingItems || [],
+        priorityItems: existingUser?.priorityItems || [],
+        maintenances: existingUser?.maintenances || [],
+        shoppingCategories: existingUser?.shoppingCategories || [],
       };
 
-      writeServerStore({
-        authConfig: updatedAuth,
-      });
+      const saved = saveUserAccount(userToSave);
 
       return NextResponse.json({
         success: true,
-        authConfig: updatedAuth,
+        user: saved,
       });
     }
 
-    if (action === 'sync') {
-      const { authConfig, basicProfile } = body;
-      const updates: any = {};
-      if (authConfig) updates.authConfig = authConfig;
-      if (basicProfile) updates.basicProfile = basicProfile;
+    if (action === 'sync-user') {
+      const { username, authConfig, basicProfile, data } = body;
+      const targetUser = (username || authConfig?.username || 'barreto').trim().toLowerCase();
+      const existing = getUserAccount(targetUser);
 
-      const updated = writeServerStore(updates);
-      return NextResponse.json({
-        success: true,
-        authConfig: updated.authConfig,
-        basicProfile: updated.basicProfile,
-      });
+      if (existing) {
+        if (authConfig?.pin) existing.pin = authConfig.pin;
+        if (authConfig?.name) existing.name = authConfig.name;
+        if (authConfig?.hint !== undefined) existing.hint = authConfig.hint;
+        if (basicProfile) existing.basicProfile = { ...existing.basicProfile, ...basicProfile };
+        if (data?.sectors) existing.sectors = data.sectors;
+        if (data?.sectorItemsMap) existing.sectorItemsMap = data.sectorItemsMap;
+        if (data?.shoppingItems) existing.shoppingItems = data.shoppingItems;
+        if (data?.priorityItems) existing.priorityItems = data.priorityItems;
+        if (data?.maintenances) existing.maintenances = data.maintenances;
+        if (data?.shoppingCategories) existing.shoppingCategories = data.shoppingCategories;
+
+        const saved = saveUserAccount(existing);
+        return NextResponse.json({ success: true, user: saved });
+      } else {
+        const newUser: UserAccount = {
+          username: targetUser,
+          name: authConfig?.name || basicProfile?.fullName || 'Gabriel Veloso Barreto',
+          pin: authConfig?.pin || '1234',
+          hint: authConfig?.hint || '',
+          rememberMe: true,
+          basicProfile: basicProfile || {
+            fullName: 'Gabriel Veloso Barreto',
+            residenceName: 'Arniqueiras',
+            residenceType: 'Casa',
+            isCompleted: true,
+            completedAt: new Date().toISOString(),
+          },
+          sectors: data?.sectors || [],
+          sectorItemsMap: data?.sectorItemsMap || {},
+          shoppingItems: data?.shoppingItems || [],
+          priorityItems: data?.priorityItems || [],
+          maintenances: data?.maintenances || [],
+          shoppingCategories: data?.shoppingCategories || [],
+        };
+        const saved = saveUserAccount(newUser);
+        return NextResponse.json({ success: true, user: saved });
+      }
     }
 
     return NextResponse.json({ success: false, error: 'Ação desconhecida' }, { status: 400 });

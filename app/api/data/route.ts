@@ -1,17 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readServerStore, writeServerStore } from '@/lib/serverStorage';
+import { readServerStore, getUserAccount, saveUserAccount } from '@/lib/serverStorage';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const username = (searchParams.get('username') || 'barreto').trim().toLowerCase();
+    const user = getUserAccount(username);
+
+    if (user) {
+      return NextResponse.json({
+        success: true,
+        sectors: user.sectors || null,
+        sectorItemsMap: user.sectorItemsMap || null,
+        shoppingItems: user.shoppingItems || null,
+        priorityItems: user.priorityItems || null,
+        maintenances: user.maintenances || null,
+        shoppingCategories: user.shoppingCategories || null,
+      });
+    }
+
     const store = readServerStore();
+    const defaultUser = store.users['barreto'];
     return NextResponse.json({
       success: true,
-      sectors: store.sectors || null,
-      sectorItemsMap: store.sectorItemsMap || null,
-      shoppingItems: store.shoppingItems || null,
-      priorityItems: store.priorityItems || null,
-      maintenances: store.maintenances || null,
-      shoppingCategories: store.shoppingCategories || null,
+      sectors: defaultUser?.sectors || null,
+      sectorItemsMap: defaultUser?.sectorItemsMap || null,
+      shoppingItems: defaultUser?.shoppingItems || null,
+      priorityItems: defaultUser?.priorityItems || null,
+      maintenances: defaultUser?.maintenances || null,
+      shoppingCategories: defaultUser?.shoppingCategories || null,
     });
   } catch (error) {
     return NextResponse.json(
@@ -25,6 +44,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      username,
       sectors,
       sectorItemsMap,
       shoppingItems,
@@ -33,19 +53,28 @@ export async function POST(req: NextRequest) {
       shoppingCategories,
     } = body;
 
-    const updates: any = {};
-    if (sectors !== undefined) updates.sectors = sectors;
-    if (sectorItemsMap !== undefined) updates.sectorItemsMap = sectorItemsMap;
-    if (shoppingItems !== undefined) updates.shoppingItems = shoppingItems;
-    if (priorityItems !== undefined) updates.priorityItems = priorityItems;
-    if (maintenances !== undefined) updates.maintenances = maintenances;
-    if (shoppingCategories !== undefined) updates.shoppingCategories = shoppingCategories;
+    const targetUsername = (username || 'barreto').trim().toLowerCase();
+    const user = getUserAccount(targetUsername);
 
-    const updated = writeServerStore(updates);
+    if (user) {
+      if (sectors !== undefined) user.sectors = sectors;
+      if (sectorItemsMap !== undefined) user.sectorItemsMap = sectorItemsMap;
+      if (shoppingItems !== undefined) user.shoppingItems = shoppingItems;
+      if (priorityItems !== undefined) user.priorityItems = priorityItems;
+      if (maintenances !== undefined) user.maintenances = maintenances;
+      if (shoppingCategories !== undefined) user.shoppingCategories = shoppingCategories;
+
+      const saved = saveUserAccount(user);
+      return NextResponse.json({
+        success: true,
+        store: saved,
+      });
+    }
+
     return NextResponse.json({
-      success: true,
-      store: updated,
-    });
+      success: false,
+      error: 'Usuário não localizado para salvar dados',
+    }, { status: 404 });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Falha ao salvar dados no servidor' },

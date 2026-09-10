@@ -1,14 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
-interface ServerStore {
-  authConfig?: {
-    name: string;
-    pin: string;
-    hint?: string;
-    rememberMe: boolean;
-  };
-  basicProfile?: {
+export interface UserAccount {
+  username: string;
+  name: string;
+  pin: string;
+  hint?: string;
+  rememberMe?: boolean;
+  basicProfile: {
     fullName: string;
     residenceName: string;
     residenceType: string;
@@ -25,13 +24,45 @@ interface ServerStore {
   priorityItems?: any[];
   maintenances?: any[];
   shoppingCategories?: string[];
+  updatedAt?: string;
+}
+
+export interface ServerStore {
+  users: Record<string, UserAccount>;
   lastUpdated?: string;
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'barreto-store.json');
+const TMP_FILE = '/tmp/barreto-store.json';
 
-// Ensure directory exists
+// Default initial user for Barreto
+const DEFAULT_BARRETO_USER: UserAccount = {
+  username: 'barreto',
+  name: 'Gabriel Veloso Barreto',
+  pin: '1234',
+  hint: '',
+  rememberMe: true,
+  basicProfile: {
+    fullName: 'Gabriel Veloso Barreto',
+    residenceName: 'Arniqueiras',
+    residenceType: 'Casa',
+    phone: '',
+    cityState: 'Brasília - DF',
+    address: 'Arniqueiras',
+    notes: '',
+    isCompleted: true,
+    completedAt: new Date().toISOString(),
+  },
+  sectors: [],
+  sectorItemsMap: {},
+  shoppingItems: [],
+  priorityItems: [],
+  maintenances: [],
+  shoppingCategories: [],
+  updatedAt: new Date().toISOString(),
+};
+
 function ensureDirectory() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -44,47 +75,113 @@ function ensureDirectory() {
 
 export function readServerStore(): ServerStore {
   ensureDirectory();
+  let rawData: any = null;
+
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(raw);
+      rawData = JSON.parse(raw);
     }
   } catch (err) {
-    console.error('Error reading server store:', err);
+    console.error('Error reading server store from primary path:', err);
   }
 
-  // Fallback /tmp location if needed
-  const tmpFile = '/tmp/barreto-store.json';
-  try {
-    if (fs.existsSync(tmpFile)) {
-      const raw = fs.readFileSync(tmpFile, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch {}
+  if (!rawData) {
+    try {
+      if (fs.existsSync(TMP_FILE)) {
+        const raw = fs.readFileSync(TMP_FILE, 'utf-8');
+        rawData = JSON.parse(raw);
+      }
+    } catch {}
+  }
 
-  return {};
-}
-
-export function writeServerStore(data: Partial<ServerStore>): ServerStore {
-  ensureDirectory();
-  const current = readServerStore();
-  const updated: ServerStore = {
-    ...current,
-    ...data,
+  // Ensure structure with users dictionary
+  const store: ServerStore = {
+    users: {},
     lastUpdated: new Date().toISOString(),
   };
 
+  if (rawData && typeof rawData === 'object') {
+    if (rawData.users && typeof rawData.users === 'object') {
+      store.users = rawData.users;
+    }
+
+    // Migrate legacy single authConfig/basicProfile if users dictionary is empty
+    if (Object.keys(store.users).length === 0 && rawData.authConfig) {
+      const legacyUserKey = 'barreto';
+      store.users[legacyUserKey] = {
+        username: legacyUserKey,
+        name: rawData.authConfig.name || 'Gabriel Veloso Barreto',
+        pin: rawData.authConfig.pin || '1234',
+        hint: rawData.authConfig.hint || '',
+        rememberMe: true,
+        basicProfile: rawData.basicProfile || DEFAULT_BARRETO_USER.basicProfile,
+        sectors: rawData.sectors || [],
+        sectorItemsMap: rawData.sectorItemsMap || {},
+        shoppingItems: rawData.shoppingItems || [],
+        priorityItems: rawData.priorityItems || [],
+        maintenances: rawData.maintenances || [],
+        shoppingCategories: rawData.shoppingCategories || [],
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  // Always make sure default 'barreto' account exists
+  if (!store.users['barreto']) {
+    store.users['barreto'] = { ...DEFAULT_BARRETO_USER };
+  }
+
+  return store;
+}
+
+export function writeServerStore(store: ServerStore): ServerStore {
+  ensureDirectory();
+  store.lastUpdated = new Date().toISOString();
+
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error writing to primary store file:', err);
-    // Fallback to /tmp
     try {
-      fs.writeFileSync('/tmp/barreto-store.json', JSON.stringify(updated, null, 2), 'utf-8');
+      fs.writeFileSync(TMP_FILE, JSON.stringify(store, null, 2), 'utf-8');
     } catch (tmpErr) {
       console.error('Error writing to fallback store file:', tmpErr);
     }
   }
 
+  return store;
+}
+
+export function getUserAccount(username: string): UserAccount | null {
+  const store = readServerStore();
+  const normalized = (username || '').trim().toLowerCase();
+  
+  if (store.users[normalized]) {
+    return store.users[normalized];
+  }
+
+  // Check aliases like "gabriel" -> "barreto" if only barreto exists
+  if (normalized === 'gabriel' && store.users['barreto']) {
+    return store.users['barreto'];
+  }
+
+  return null;
+}
+
+export function saveUserAccount(account: UserAccount): UserAccount {
+  const store = readServerStore();
+  const normalized = account.username.trim().toLowerCase();
+
+  const existing = store.users[normalized] || {};
+  const updated: UserAccount = {
+    ...existing,
+    ...account,
+    username: normalized,
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.users[normalized] = updated;
+  writeServerStore(store);
   return updated;
 }

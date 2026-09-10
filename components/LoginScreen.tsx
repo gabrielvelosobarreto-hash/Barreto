@@ -1,30 +1,48 @@
 "use client";
 
-import { useState } from 'react';
-import { Lock, KeyRound, Eye, EyeOff, Sun, Moon, ArrowRight, AlertCircle, ShieldAlert, CheckCircle2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Lock, User, KeyRound, Eye, EyeOff, Sun, Moon, ArrowRight, AlertCircle, ShieldCheck, CheckCircle2, X, Home, UserPlus } from 'lucide-react';
 import { useApp } from '@/lib/context/AppContext';
 
 export default function LoginScreen() {
-  const { login, resetPassword, theme, toggleTheme } = useApp();
+  const { login, registerOrResetUser, theme, toggleTheme } = useApp();
 
+  const [username, setUsername] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedUser = localStorage.getItem('barreto-active-user');
+        if (savedUser) return savedUser;
+      } catch {}
+    }
+    return 'barreto';
+  });
   const [pin, setPin] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Modal de redefinição de senha
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [newPin, setNewPin] = useState('');
-  const [confirmNewPin, setConfirmNewPin] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [resetError, setResetError] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
+  // Modal de cadastro ou redefinição de perfil/senha
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalUsername, setModalUsername] = useState('');
+  const [modalFullName, setModalFullName] = useState('');
+  const [modalResidenceName, setModalResidenceName] = useState('');
+  const [modalResidenceType, setModalResidenceType] = useState('Casa');
+  const [modalPin, setModalPin] = useState('');
+  const [modalConfirmPin, setModalConfirmPin] = useState('');
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+  const [modalSuccess, setModalSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+
+    if (!username.trim()) {
+      setErrorMessage('Informe o nome de usuário.');
+      return;
+    }
 
     if (!pin.trim()) {
       setErrorMessage('Digite sua senha para continuar.');
@@ -33,50 +51,72 @@ export default function LoginScreen() {
 
     setIsSubmitting(true);
     try {
-      const success = await login(pin.trim(), rememberMe);
+      const res = await login(username.trim(), pin.trim(), rememberMe);
       setIsSubmitting(false);
-      if (!success) {
-        setErrorMessage('Senha incorreta. Se este é seu primeiro acesso neste domínio, utilize a opção "Redefinir Senha" abaixo.');
+      if (!res.success) {
+        setErrorMessage(res.message || 'Usuário ou senha incorretos. Verifique suas credenciais.');
       }
     } catch {
       setIsSubmitting(false);
-      setErrorMessage('Erro ao validar acesso. Tente novamente.');
+      setErrorMessage('Erro ao validar acesso com o servidor. Tente novamente.');
     }
   };
 
-  const handleResetSubmit = async (e: React.FormEvent) => {
+  const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setResetError('');
+    setModalError('');
 
-    if (newPin.trim().length < 4) {
-      setResetError('A senha deve ter no mínimo 4 caracteres.');
+    if (!modalUsername.trim()) {
+      setModalError('Informe um nome de usuário.');
       return;
     }
 
-    if (newPin !== confirmNewPin) {
-      setResetError('As senhas digitadas não coincidem.');
+    if (modalPin.trim().length < 4) {
+      setModalError('A senha deve ter no mínimo 4 caracteres.');
       return;
     }
 
-    setIsResetting(true);
+    if (modalPin !== modalConfirmPin) {
+      setModalError('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setIsModalSubmitting(true);
     try {
-      const success = await resetPassword(newPin.trim());
-      if (success) {
-        setResetSuccess(true);
+      const res = await registerOrResetUser({
+        username: modalUsername.trim().toLowerCase(),
+        pin: modalPin.trim(),
+        fullName: modalFullName.trim() || undefined,
+        residenceName: modalResidenceName.trim() || undefined,
+        residenceType: modalResidenceType,
+      });
+
+      if (res.success) {
+        setModalSuccess(true);
         setTimeout(() => {
-          setIsResetModalOpen(false);
-          setResetSuccess(false);
-          setNewPin('');
-          setConfirmNewPin('');
-        }, 800);
+          setIsModalOpen(false);
+          setModalSuccess(false);
+          setUsername(modalUsername.trim().toLowerCase());
+        }, 700);
       } else {
-        setResetError('Não foi possível redefinir a senha. Tente novamente.');
+        setModalError(res.message || 'Não foi possível salvar o perfil. Tente novamente.');
       }
     } catch {
-      setResetError('Erro na comunicação com o servidor.');
+      setModalError('Erro na comunicação com o servidor.');
     } finally {
-      setIsResetting(false);
+      setIsModalSubmitting(false);
     }
+  };
+
+  const openRegisterModal = () => {
+    setModalError('');
+    setModalUsername(username || 'barreto');
+    setModalFullName(username.toLowerCase() === 'barreto' ? 'Gabriel Veloso Barreto' : '');
+    setModalResidenceName(username.toLowerCase() === 'barreto' ? 'Arniqueiras' : '');
+    setModalResidenceType('Casa');
+    setModalPin('');
+    setModalConfirmPin('');
+    setIsModalOpen(true);
   };
 
   return (
@@ -101,7 +141,7 @@ export default function LoginScreen() {
       {/* Card Minimalista de Acesso Privativo */}
       <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl relative z-10 animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Cabeçalho Minimalista sem dados pessoais */}
+        {/* Cabeçalho Minimalista */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 mb-3">
             <Lock className="w-6 h-6" />
@@ -111,7 +151,7 @@ export default function LoginScreen() {
             Acesso Privativo
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Digite sua senha para acessar o painel
+            Informe seu usuário e senha vinculados ao app
           </p>
         </div>
 
@@ -125,13 +165,34 @@ export default function LoginScreen() {
           </div>
         )}
 
-        {/* Formulário Seguro */}
+        {/* Formulário Seguro com Usuário e Senha Vinculados */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Campo Usuário */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Usuário de Acesso
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="ex: barreto"
+                required
+                autoCapitalize="none"
+                autoCorrect="off"
+                className="w-full px-3.5 py-2.5 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium placeholder:font-normal"
+              />
+              <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            </div>
+          </div>
+
+          {/* Campo Senha */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
               Senha de Acesso
             </label>
-            
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -139,7 +200,6 @@ export default function LoginScreen() {
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="••••••••"
                 required
-                autoFocus
                 className="w-full px-3.5 py-2.5 pl-10 pr-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all tracking-wider font-medium placeholder:tracking-normal"
               />
               <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -176,134 +236,186 @@ export default function LoginScreen() {
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Verificando...</span>
+                <span>Carregando dados...</span>
               </>
             ) : (
               <>
-                <span>Acessar</span>
+                <span>Acessar Painel</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
-        {/* Link Discreto de Redefinição para o Responsável */}
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
+        {/* Link para Configuração/Redefinição de Perfil ou Novo Usuário */}
+        <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
           <button
             type="button"
-            onClick={() => {
-              setResetError('');
-              setNewPin('');
-              setConfirmNewPin('');
-              setIsResetModalOpen(true);
-            }}
-            className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium transition-colors hover:underline cursor-pointer"
+            onClick={openRegisterModal}
+            className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium transition-colors hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
           >
-            Esqueceu a senha ou primeiro acesso no domínio?
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Cadastrar novo perfil ou redefinir senha</span>
           </button>
         </div>
 
         {/* Rodapé Minimalista */}
         <div className="mt-3 text-center">
           <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-            Área Restrita e Protegida
+            Dados e permissões vinculados ao usuário ativo
           </span>
         </div>
       </div>
 
-      {/* Modal Seguro de Redefinição de Senha */}
-      {isResetModalOpen && (
+      {/* Modal Seguro de Cadastro ou Redefinição de Usuário */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl relative animate-in zoom-in-95 duration-200">
             
             {/* Fechar Modal */}
             <button
               type="button"
-              onClick={() => setIsResetModalOpen(false)}
+              onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1 rounded-lg"
               title="Fechar"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="text-center mb-5">
+            <div className="text-center mb-4">
               <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-2">
-                <ShieldAlert className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Definir Senha de Acesso
+                Vincular Usuário e Perfil
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                Cadastre sua senha privativa para acessar o aplicativo neste domínio e em qualquer outro dispositivo.
+                Configure as credenciais e dados da residência que serão carregados neste acesso.
               </p>
             </div>
 
-            {resetError && (
+            {modalError && (
               <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                <span>{resetError}</span>
+                <span>{modalError}</span>
               </div>
             )}
 
-            {resetSuccess ? (
+            {modalSuccess ? (
               <div className="py-6 text-center text-emerald-600 dark:text-emerald-400 flex flex-col items-center">
                 <CheckCircle2 className="w-10 h-10 mb-2 animate-bounce" />
-                <span className="text-sm font-semibold">Senha salva com sucesso! Entrando...</span>
+                <span className="text-sm font-semibold">Usuário vinculado com sucesso! Entrando...</span>
               </div>
             ) : (
-              <form onSubmit={handleResetSubmit} className="space-y-4">
+              <form onSubmit={handleModalSubmit} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nova Senha
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Nome de Usuário (Login)
+                  </label>
+                  <input
+                    type="text"
+                    value={modalUsername}
+                    onChange={(e) => setModalUsername(e.target.value)}
+                    placeholder="ex: barreto"
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Nome Completo do Responsável
+                  </label>
+                  <input
+                    type="text"
+                    value={modalFullName}
+                    onChange={(e) => setModalFullName(e.target.value)}
+                    placeholder="ex: Gabriel Veloso Barreto"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Residência
+                    </label>
+                    <input
+                      type="text"
+                      value={modalResidenceName}
+                      onChange={(e) => setModalResidenceName(e.target.value)}
+                      placeholder="ex: Arniqueiras"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Tipo
+                    </label>
+                    <select
+                      value={modalResidenceType}
+                      onChange={(e) => setModalResidenceType(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    >
+                      <option value="Casa">Casa</option>
+                      <option value="Apartamento">Apartamento</option>
+                      <option value="Chácara">Chácara</option>
+                      <option value="Sobrado">Sobrado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Senha de Acesso
                   </label>
                   <div className="relative">
                     <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      value={newPin}
-                      onChange={(e) => setNewPin(e.target.value)}
+                      type={showModalPassword ? 'text' : 'password'}
+                      value={modalPin}
+                      onChange={(e) => setModalPin(e.target.value)}
                       placeholder="Mínimo 4 caracteres"
                       required
-                      autoFocus
-                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 absolute right-3 top-3 transition-colors cursor-pointer"
+                      onClick={() => setShowModalPassword(!showModalPassword)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 absolute right-2.5 top-2.5 transition-colors cursor-pointer"
                     >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showModalPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Confirmar Nova Senha
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Confirmar Senha
                   </label>
                   <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={confirmNewPin}
-                    onChange={(e) => setConfirmNewPin(e.target.value)}
+                    type={showModalPassword ? 'text' : 'password'}
+                    value={modalConfirmPin}
+                    onChange={(e) => setModalConfirmPin(e.target.value)}
                     placeholder="Repita a senha"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
 
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsResetModalOpen(false)}
-                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    disabled={isResetting}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-70 flex items-center justify-center gap-1.5"
+                    disabled={isModalSubmitting}
+                    className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-70 flex items-center justify-center gap-1.5"
                   >
-                    {isResetting ? (
+                    {isModalSubmitting ? (
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       'Salvar e Entrar'

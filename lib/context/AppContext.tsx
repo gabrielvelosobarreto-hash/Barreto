@@ -92,6 +92,7 @@ export interface PriorityItem {
 }
 
 export interface AuthUser {
+  username?: string;
   name: string;
   pin: string;
   hint?: string;
@@ -222,10 +223,18 @@ export interface AppContextType {
   isAuthLoaded: boolean;
   authConfig: AuthUser | null;
   setupAuth: (name: string, pin: string, hint?: string, rememberMe?: boolean) => void;
-  login: (pin: string, rememberMe?: boolean) => Promise<boolean> | boolean;
+  login: (arg1: string, arg2?: string | boolean, arg3?: boolean) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
-  changePassword: (currentPin: string, newPin: string, newHint?: string) => Promise<boolean> | boolean;
-  resetPassword: (newPin: string, newHint?: string) => Promise<boolean>;
+  changePassword: (currentPin: string, newPin: string, newHint?: string) => Promise<boolean>;
+  resetPassword: (newPin: string, newHint?: string, username?: string) => Promise<boolean>;
+  registerOrResetUser: (params: {
+    username: string;
+    pin: string;
+    fullName?: string;
+    residenceName?: string;
+    residenceType?: string;
+    hint?: string;
+  }) => Promise<{ success: boolean; message?: string }>;
   updateProfileName: (name: string) => void;
   resetAllData: () => void;
 
@@ -524,12 +533,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Sincronização dos dados com o servidor central para consistência entre todos os domínios
   useEffect(() => {
     if (!isLoaded || typeof window === 'undefined') return;
+    const currentUsername = (authConfig?.username || 'barreto').trim().toLowerCase();
     const timer = setTimeout(() => {
       try {
         fetch('/api/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            username: currentUsername,
             sectors: rawSectors,
             sectorItemsMap,
             shoppingItems,
@@ -541,7 +552,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }, 1200);
     return () => clearTimeout(timer);
-  }, [rawSectors, sectorItemsMap, shoppingItems, priorityItems, maintenances, shoppingCategories, isLoaded]);
+  }, [rawSectors, sectorItemsMap, shoppingItems, priorityItems, maintenances, shoppingCategories, authConfig?.username, isLoaded]);
 
   // Synchronize document dark class with current theme state
   useEffect(() => {
@@ -565,11 +576,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Auth Operations
   const setupAuth = (name: string, pin: string, hint?: string, rememberMe: boolean = true) => {
-    const newConfig: AuthUser = { name, pin, hint, rememberMe };
+    const newConfig: AuthUser = { username: 'barreto', name, pin, hint, rememberMe };
     setAuthConfig(newConfig);
     setIsAuthenticated(true);
     try {
       localStorage.setItem('barreto-auth-config', JSON.stringify(newConfig));
+      localStorage.setItem('barreto-active-user', 'barreto');
       if (rememberMe) {
         localStorage.setItem('barreto-auth-session', 'active');
       } else {
@@ -578,9 +590,87 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const login = async (inputPin: string, rememberMe: boolean = true): Promise<boolean> => {
-    // 1. Verificação Local Instantânea
-    if (authConfig && authConfig.pin === inputPin) {
+  const login = async (
+    arg1: string,
+    arg2?: string | boolean,
+    arg3?: boolean
+  ): Promise<{ success: boolean; message?: string }> => {
+    let inputUsername = 'barreto';
+    let inputPin = '';
+    let rememberMe = true;
+
+    if (typeof arg2 === 'string') {
+      inputUsername = arg1.trim().toLowerCase() || 'barreto';
+      inputPin = arg2.trim();
+      rememberMe = arg3 !== undefined ? arg3 : true;
+    } else {
+      inputPin = arg1.trim();
+      rememberMe = typeof arg2 === 'boolean' ? arg2 : true;
+      inputUsername = (authConfig?.username || 'barreto').trim().toLowerCase();
+    }
+
+    if (!inputPin) {
+      return { success: false, message: 'Digite sua senha para acessar.' };
+    }
+
+    // 1. Verificação com o Servidor Central
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-login', username: inputUsername, pin: inputPin }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.authenticated && data.user) {
+          const user = data.user;
+          const userAuth: AuthUser = {
+            username: user.username,
+            name: user.name,
+            pin: user.pin,
+            hint: user.hint || '',
+            rememberMe,
+          };
+          setAuthConfig(userAuth);
+          setIsAuthenticated(true);
+
+          if (user.basicProfile) {
+            setBasicProfile(user.basicProfile);
+            try {
+              localStorage.setItem('barreto-basic-profile', JSON.stringify(user.basicProfile));
+              localStorage.setItem(`barreto-profile-${user.username}`, JSON.stringify(user.basicProfile));
+            } catch {}
+          }
+
+          if (user.sectors && Array.isArray(user.sectors)) setRawSectors(user.sectors);
+          if (user.sectorItemsMap && typeof user.sectorItemsMap === 'object') setSectorItemsMap(user.sectorItemsMap);
+          if (user.shoppingItems && Array.isArray(user.shoppingItems)) setShoppingItems(user.shoppingItems);
+          if (user.priorityItems && Array.isArray(user.priorityItems)) setPriorityItems(user.priorityItems);
+          if (user.maintenances && Array.isArray(user.maintenances)) setMaintenances(user.maintenances);
+          if (user.shoppingCategories && Array.isArray(user.shoppingCategories)) setShoppingCategories(user.shoppingCategories);
+
+          try {
+            localStorage.setItem('barreto-auth-config', JSON.stringify(userAuth));
+            localStorage.setItem('barreto-active-user', user.username);
+            if (rememberMe) {
+              localStorage.setItem('barreto-auth-session', 'active');
+            } else {
+              localStorage.removeItem('barreto-auth-session');
+            }
+          } catch {}
+
+          return { success: true };
+        } else {
+          return { success: false, message: data.error || 'Usuário ou senha incorretos.' };
+        }
+      }
+    } catch (err) {
+      console.warn('Falha na requisição de login com o servidor:', err);
+    }
+
+    // 2. Fallback offline
+    const isMatchingUser = !authConfig?.username || authConfig.username.toLowerCase() === inputUsername.toLowerCase() || inputUsername === 'barreto' || inputUsername === 'gabriel';
+    if (authConfig && isMatchingUser && authConfig.pin === inputPin) {
       setIsAuthenticated(true);
       try {
         if (rememberMe) {
@@ -589,58 +679,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem('barreto-auth-session');
         }
       } catch {}
-
-      // Sincroniza em segundo plano se o servidor ainda estiver vazio
-      try {
-        fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'sync', authConfig, basicProfile }),
-        }).catch(() => {});
-      } catch {}
-
-      return true;
+      return { success: true };
     }
 
-    // 2. Verificação no Servidor Central (Cross-Domain)
-    // Permite que qualquer alteração de senha feita em outro domínio ou dispositivo seja validada
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify-login', pin: inputPin }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.authenticated) {
-          setIsAuthenticated(true);
-          if (data.authConfig) {
-            setAuthConfig(data.authConfig);
-            try {
-              localStorage.setItem('barreto-auth-config', JSON.stringify(data.authConfig));
-            } catch {}
-          }
-          if (data.basicProfile) {
-            setBasicProfile(data.basicProfile);
-            try {
-              localStorage.setItem('barreto-basic-profile', JSON.stringify(data.basicProfile));
-            } catch {}
-          }
-          try {
-            if (rememberMe) {
-              localStorage.setItem('barreto-auth-session', 'active');
-            } else {
-              localStorage.removeItem('barreto-auth-session');
-            }
-          } catch {}
-          return true;
-        }
-      }
-    } catch (err) {
-      console.error('Falha ao verificar login com o servidor:', err);
-    }
-
-    return false;
+    return { success: false, message: 'Usuário ou senha incorretos.' };
   };
 
   const logout = () => {
@@ -652,8 +694,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const changePassword = async (currentPin: string, newPin: string, newHint?: string): Promise<boolean> => {
     if (!authConfig || authConfig.pin !== currentPin) return false;
-    const updated = {
+    const currentUsername = authConfig.username || 'barreto';
+    const updated: AuthUser = {
       ...authConfig,
+      username: currentUsername,
       pin: newPin,
       hint: newHint !== undefined ? newHint : authConfig.hint,
     };
@@ -669,6 +713,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'set-password',
+          username: currentUsername,
           newPin,
           newHint: newHint !== undefined ? newHint : authConfig.hint,
           name: authConfig.name,
@@ -681,11 +726,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  // Redefinição direta de senha do responsável (salva localmente e no servidor central)
-  const resetPassword = async (newPin: string, newHint?: string): Promise<boolean> => {
+  // Redefinição direta de senha do usuário (salva localmente e no servidor central)
+  const resetPassword = async (newPin: string, newHint?: string, username?: string): Promise<boolean> => {
     if (!newPin || newPin.trim().length < 4) return false;
+    const targetUsername = (username || authConfig?.username || 'barreto').trim().toLowerCase();
 
     const updated: AuthUser = {
+      username: targetUsername,
       name: authConfig?.name || basicProfile?.fullName || 'Gabriel Veloso Barreto',
       pin: newPin.trim(),
       hint: newHint !== undefined ? newHint : (authConfig?.hint || ''),
@@ -697,6 +744,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       localStorage.setItem('barreto-auth-config', JSON.stringify(updated));
+      localStorage.setItem('barreto-active-user', targetUsername);
       localStorage.setItem('barreto-auth-session', 'active');
     } catch {}
 
@@ -706,6 +754,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'set-password',
+          username: targetUsername,
           newPin: newPin.trim(),
           newHint: newHint || '',
           name: updated.name,
@@ -716,6 +765,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return true;
+  };
+
+  const registerOrResetUser = async (params: {
+    username: string;
+    pin: string;
+    fullName?: string;
+    residenceName?: string;
+    residenceType?: string;
+    hint?: string;
+  }): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register-user',
+          ...params,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        const user = data.user;
+        const newAuth: AuthUser = {
+          username: user.username,
+          name: user.name,
+          pin: user.pin,
+          hint: user.hint || '',
+          rememberMe: true,
+        };
+        setAuthConfig(newAuth);
+        if (user.basicProfile) {
+          setBasicProfile(user.basicProfile);
+          try {
+            localStorage.setItem(`barreto-profile-${user.username}`, JSON.stringify(user.basicProfile));
+            localStorage.setItem('barreto-basic-profile', JSON.stringify(user.basicProfile));
+          } catch {}
+        }
+        setIsAuthenticated(true);
+        try {
+          localStorage.setItem('barreto-auth-config', JSON.stringify(newAuth));
+          localStorage.setItem('barreto-active-user', user.username);
+          localStorage.setItem('barreto-auth-session', 'active');
+        } catch {}
+
+        if (user.sectors && Array.isArray(user.sectors)) setRawSectors(user.sectors);
+        if (user.sectorItemsMap && typeof user.sectorItemsMap === 'object') setSectorItemsMap(user.sectorItemsMap);
+        if (user.shoppingItems && Array.isArray(user.shoppingItems)) setShoppingItems(user.shoppingItems);
+        if (user.priorityItems && Array.isArray(user.priorityItems)) setPriorityItems(user.priorityItems);
+        if (user.maintenances && Array.isArray(user.maintenances)) setMaintenances(user.maintenances);
+        if (user.shoppingCategories && Array.isArray(user.shoppingCategories)) setShoppingCategories(user.shoppingCategories);
+
+        return { success: true };
+      }
+      return { success: false, message: data.error || 'Erro ao cadastrar perfil de usuário' };
+    } catch (err) {
+      return { success: false, message: 'Erro de conexão com o servidor' };
+    }
   };
 
   const updateProfileName = (newName: string) => {
@@ -1219,6 +1325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       logout,
       changePassword,
       resetPassword,
+      registerOrResetUser,
       updateProfileName,
       resetAllData,
       basicProfile,
