@@ -222,9 +222,10 @@ export interface AppContextType {
   isAuthLoaded: boolean;
   authConfig: AuthUser | null;
   setupAuth: (name: string, pin: string, hint?: string, rememberMe?: boolean) => void;
-  login: (pin: string, rememberMe?: boolean) => boolean;
+  login: (pin: string, rememberMe?: boolean) => Promise<boolean> | boolean;
   logout: () => void;
-  changePassword: (currentPin: string, newPin: string, newHint?: string) => boolean;
+  changePassword: (currentPin: string, newPin: string, newHint?: string) => Promise<boolean> | boolean;
+  resetPassword: (newPin: string, newHint?: string) => Promise<boolean>;
   updateProfileName: (name: string) => void;
   resetAllData: () => void;
 
@@ -307,11 +308,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 3. Auth configuration & session (Single Profile Policy)
+        let hydratedAuth: AuthUser | null = null;
+        let hydratedProfile: BasicProfile | null = null;
+
         const savedAuth = localStorage.getItem('barreto-auth-config');
         if (savedAuth) {
           try {
             const parsed = JSON.parse(savedAuth);
             setAuthConfig(parsed);
+            hydratedAuth = parsed;
             const session = localStorage.getItem('barreto-auth-session');
             if (session === 'active') {
               setIsAuthenticated(true);
@@ -326,6 +331,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               rememberMe: true,
             };
             setAuthConfig(defaultAuth);
+            hydratedAuth = defaultAuth;
             setIsAuthenticated(false);
           }
         } else {
@@ -337,6 +343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             rememberMe: true,
           };
           setAuthConfig(defaultAuth);
+          hydratedAuth = defaultAuth;
           try {
             localStorage.setItem('barreto-auth-config', JSON.stringify(defaultAuth));
           } catch {}
@@ -349,6 +356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           try {
             const parsed = JSON.parse(savedProfile);
             setBasicProfile(parsed);
+            hydratedProfile = parsed;
           } catch {
             const defaultProfile: BasicProfile = {
               fullName: 'Gabriel Veloso Barreto',
@@ -358,6 +366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               completedAt: new Date().toISOString(),
             };
             setBasicProfile(defaultProfile);
+            hydratedProfile = defaultProfile;
           }
         } else {
           // Mantém o perfil único cadastrado
@@ -369,10 +378,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             completedAt: new Date().toISOString(),
           };
           setBasicProfile(defaultProfile);
+          hydratedProfile = defaultProfile;
           try {
             localStorage.setItem('barreto-basic-profile', JSON.stringify(defaultProfile));
           } catch {}
         }
+
+        // 5. Sincronização em segundo plano com o Servidor Central
+        // Garante que o mesmo perfil e senha funcionem em qualquer domínio (dev, preview, domínio próprio)
+        (async () => {
+          try {
+            const resAuth = await fetch('/api/auth');
+            if (resAuth.ok) {
+              const data = await resAuth.json();
+              if (data.success) {
+                if (data.authConfig && data.authConfig.pin) {
+                  // Se o servidor tem uma senha salva e o cliente tem o padrão '1234', adota a do servidor
+                  if (!hydratedAuth || hydratedAuth.pin === '1234' || data.authConfig.pin !== '1234') {
+                    setAuthConfig(data.authConfig);
+                    try {
+                      localStorage.setItem('barreto-auth-config', JSON.stringify(data.authConfig));
+                    } catch {}
+                  }
+                } else if (hydratedAuth && hydratedAuth.pin !== '1234') {
+                  // Se o cliente tem senha personalizada e o servidor não, envia ao servidor
+                  fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'sync',
+                      authConfig: hydratedAuth,
+                      basicProfile: hydratedProfile,
+                    }),
+                  }).catch(() => {});
+                }
+
+                if (data.basicProfile) {
+                  setBasicProfile(data.basicProfile);
+                  try {
+                    localStorage.setItem('barreto-basic-profile', JSON.stringify(data.basicProfile));
+                  } catch {}
+                }
+              }
+            }
+
+            // Sync de dados de setores e manutenções se o cliente estiver vazio
+            const resData = await fetch('/api/data');
+            if (resData.ok) {
+              const data = await resData.json();
+              if (data.success) {
+                if (data.sectors && Array.isArray(data.sectors) && data.sectors.length > 0) {
+                  setRawSectors(prev => prev.length === 0 ? data.sectors : prev);
+                }
+                if (data.sectorItemsMap && Object.keys(data.sectorItemsMap).length > 0) {
+                  setSectorItemsMap(prev => Object.keys(prev).length === 0 ? data.sectorItemsMap : prev);
+                }
+                if (data.maintenances && Array.isArray(data.maintenances) && data.maintenances.length > 0) {
+                  setMaintenances(prev => prev.length === 0 ? data.maintenances : prev);
+                }
+                if (data.shoppingItems && Array.isArray(data.shoppingItems) && data.shoppingItems.length > 0) {
+                  setShoppingItems(prev => prev.length === 0 ? data.shoppingItems : prev);
+                }
+                if (data.priorityItems && Array.isArray(data.priorityItems) && data.priorityItems.length > 0) {
+                  setPriorityItems(prev => prev.length === 0 ? data.priorityItems : prev);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Sync com servidor em segundo plano indisponível:', err);
+          }
+        })();
       } catch (err) {
         console.error('Error hydrating localStorage state:', err);
       } finally {
@@ -446,6 +521,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [maintenances, isLoaded]);
 
+  // Sincronização dos dados com o servidor central para consistência entre todos os domínios
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    const timer = setTimeout(() => {
+      try {
+        fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sectors: rawSectors,
+            sectorItemsMap,
+            shoppingItems,
+            priorityItems,
+            maintenances,
+            shoppingCategories,
+          }),
+        }).catch(() => {});
+      } catch {}
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [rawSectors, sectorItemsMap, shoppingItems, priorityItems, maintenances, shoppingCategories, isLoaded]);
+
   // Synchronize document dark class with current theme state
   useEffect(() => {
     if (theme === 'dark') {
@@ -481,9 +578,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const login = (inputPin: string, rememberMe: boolean = true): boolean => {
-    if (!authConfig) return false;
-    if (authConfig.pin === inputPin) {
+  const login = async (inputPin: string, rememberMe: boolean = true): Promise<boolean> => {
+    // 1. Verificação Local Instantânea
+    if (authConfig && authConfig.pin === inputPin) {
       setIsAuthenticated(true);
       try {
         if (rememberMe) {
@@ -492,8 +589,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem('barreto-auth-session');
         }
       } catch {}
+
+      // Sincroniza em segundo plano se o servidor ainda estiver vazio
+      try {
+        fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync', authConfig, basicProfile }),
+        }).catch(() => {});
+      } catch {}
+
       return true;
     }
+
+    // 2. Verificação no Servidor Central (Cross-Domain)
+    // Permite que qualquer alteração de senha feita em outro domínio ou dispositivo seja validada
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-login', pin: inputPin }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.authenticated) {
+          setIsAuthenticated(true);
+          if (data.authConfig) {
+            setAuthConfig(data.authConfig);
+            try {
+              localStorage.setItem('barreto-auth-config', JSON.stringify(data.authConfig));
+            } catch {}
+          }
+          if (data.basicProfile) {
+            setBasicProfile(data.basicProfile);
+            try {
+              localStorage.setItem('barreto-basic-profile', JSON.stringify(data.basicProfile));
+            } catch {}
+          }
+          try {
+            if (rememberMe) {
+              localStorage.setItem('barreto-auth-session', 'active');
+            } else {
+              localStorage.removeItem('barreto-auth-session');
+            }
+          } catch {}
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Falha ao verificar login com o servidor:', err);
+    }
+
     return false;
   };
 
@@ -504,7 +650,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const changePassword = (currentPin: string, newPin: string, newHint?: string): boolean => {
+  const changePassword = async (currentPin: string, newPin: string, newHint?: string): Promise<boolean> => {
     if (!authConfig || authConfig.pin !== currentPin) return false;
     const updated = {
       ...authConfig,
@@ -515,6 +661,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('barreto-auth-config', JSON.stringify(updated));
     } catch {}
+
+    // Persiste no Servidor Central para todos os domínios
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-password',
+          newPin,
+          newHint: newHint !== undefined ? newHint : authConfig.hint,
+          name: authConfig.name,
+        }),
+      });
+    } catch (err) {
+      console.warn('Falha ao sincronizar alteração de senha no servidor:', err);
+    }
+
+    return true;
+  };
+
+  // Redefinição direta de senha do responsável (salva localmente e no servidor central)
+  const resetPassword = async (newPin: string, newHint?: string): Promise<boolean> => {
+    if (!newPin || newPin.trim().length < 4) return false;
+
+    const updated: AuthUser = {
+      name: authConfig?.name || basicProfile?.fullName || 'Gabriel Veloso Barreto',
+      pin: newPin.trim(),
+      hint: newHint !== undefined ? newHint : (authConfig?.hint || ''),
+      rememberMe: true,
+    };
+
+    setAuthConfig(updated);
+    setIsAuthenticated(true);
+
+    try {
+      localStorage.setItem('barreto-auth-config', JSON.stringify(updated));
+      localStorage.setItem('barreto-auth-session', 'active');
+    } catch {}
+
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-password',
+          newPin: newPin.trim(),
+          newHint: newHint || '',
+          name: updated.name,
+        }),
+      });
+    } catch (err) {
+      console.error('Falha ao sincronizar redefinição no servidor:', err);
+    }
+
     return true;
   };
 
@@ -1018,6 +1218,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       changePassword,
+      resetPassword,
       updateProfileName,
       resetAllData,
       basicProfile,

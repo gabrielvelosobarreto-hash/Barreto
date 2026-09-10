@@ -125,7 +125,7 @@ export function TopBar() {
     setModalType(null);
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwdError('');
     setPwdSuccess('');
@@ -143,7 +143,7 @@ export function TopBar() {
       return;
     }
 
-    const success = changePassword(currentPin.trim(), newPin.trim(), newHint.trim());
+    const success = await changePassword(currentPin.trim(), newPin.trim(), newHint.trim());
     if (!success) {
       setPwdError('Senha atual incorreta. Tente novamente.');
       return;
