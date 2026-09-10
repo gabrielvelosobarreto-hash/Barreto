@@ -91,238 +91,34 @@ export interface PriorityItem {
   priority: PriorityType;
 }
 
-const FILTER_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuCT4JVy2QYtBYNeSK0tcgqaJ-yFmDtSkdhC6Bwsc_pfoSksrfT7AWr0dNTBjLITm4IyuZYX7kuqkVQXaItletFxRHAnIwE5AGN4y__0NOeuGoGUj6EO9EQ4092ZNAZn7ec7XsnXOCYLEswAFNN44918KeFUN67s4d_AB-WkFReHYLlgNwlfLncp5r-J0LxlgiNknQrCKOD9dXy8-nv5QnjAAoGpRuBGNhi0PtDnlEDqnBxexK5wIQVzHQ";
-const BULBS_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuDmTJ2k9FgnN_jhmN5Mt8P_0lICG7mfFM9uA0dKhCPiwOS4w5ta0mo2qdibDWDtEzINVUWPk3l0XTImrUJC4RIxRUAySkUM0U_84tMt6-gY1isd_QqC3SwQrfjrnpo0sgqAX3sopEEUbszAkLpfHCEDPi_bDstEZz2YCLSnxcdexiYk4M2b9CDnRMjZ6G3CMQYSXBqQ60S3NQlPrfSTyh6sNuRGMp2oJiFFHZPO2FjuN2uix-HgaJ5m-Q";
-const PANTRY_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuA-GUXgWc3tNkch6YUrviX2JODDCSiDlPAARxtSK1D51JG1IoY1OE4-LrdGI0d35srb4Bh8ezAfVeKk-wMeTr_So2cUnmeeUFq0EsOUqrFIq5WWJfGRW9FRD-7ozObysfvms5B_usfkVfpuKyvpLYmh5OwXWVRJI1bQiRnmPxwzpTG8Zssi8yNRxaH-EAqTtmJrXDD3_bIHW_b_r6ccpdCfEKVzt2LBgPKzW2uIBnqZAWuswbXfk6gVhg";
+export interface AuthUser {
+  name: string;
+  pin: string;
+  hint?: string;
+  rememberMe?: boolean;
+}
 
-const INITIAL_SHOPPING_ITEMS: ShoppingItem[] = [
-  { id: 1, name: 'Leite Integral 1L', price: 'R$ 4,50', numPrice: 4.5, priority: 'Alta', category: 'Alimentos', iconId: 'Droplets', checked: false },
-  { id: 2, name: 'Café Especial em Grãos 500g', price: 'R$ 22,00', numPrice: 22, priority: 'Alta', category: 'Alimentos', iconId: 'Apple', checked: false },
-  { id: 3, name: 'Arroz Parboilizado 5kg', price: 'R$ 26,50', numPrice: 26.5, priority: 'Alta', category: 'Alimentos', iconId: 'Package', checked: false },
-  { id: 4, name: 'Azeite de Oliva Extra Virgem', price: 'R$ 34,90', numPrice: 34.9, priority: 'Média', category: 'Alimentos', iconId: 'Droplets', checked: false },
-  { id: 5, name: 'Detergente Líquido Neutro', price: 'R$ 2,80', numPrice: 2.8, priority: 'Média', category: 'Limpeza', iconId: 'SprayCan', checked: false },
-  { id: 6, name: 'Sabão em Pó Concentrado 1kg', price: 'R$ 16,90', numPrice: 16.9, priority: 'Alta', category: 'Limpeza', iconId: 'SprayCan', checked: false },
-  { id: 7, name: 'Desinfetante Multiuso Lavanda', price: 'R$ 7,50', numPrice: 7.5, priority: 'Baixa', category: 'Limpeza', iconId: 'SprayCan', checked: false },
-  { id: 8, name: 'Sabonete Hidratante em Barra', price: 'R$ 2,50', numPrice: 2.5, priority: 'Baixa', category: 'Higiene', iconId: 'Hand', checked: true },
-  { id: 9, name: 'Pasta de Dente Proteção Total', price: 'R$ 6,20', numPrice: 6.2, priority: 'Média', category: 'Higiene', iconId: 'Droplets', checked: true },
-  { id: 10, name: 'Papel Higiênico Folha Dupla 12un', price: 'R$ 24,00', numPrice: 24, priority: 'Alta', category: 'Higiene', iconId: 'Package', checked: false },
-  { id: 11, name: 'Cabo USB-C Trançado 2m', price: 'R$ 38,00', numPrice: 38, priority: 'Baixa', category: 'Eletrônicos', iconId: 'Plug', checked: false },
-  { id: 12, name: 'Pilhas Alcalinas AA (4un)', price: 'R$ 14,00', numPrice: 14, priority: 'Baixa', category: 'Eletrônicos', iconId: 'Plug', checked: false },
-];
+export interface BasicProfile {
+  fullName: string;
+  residenceName: string;
+  residenceType: string;
+  phone?: string;
+  cityState?: string;
+  address?: string;
+  notes?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+}
 
-const INITIAL_PRIORITY_ITEMS: PriorityItem[] = [
-  { id: 1, name: 'Filtros de Ar HEPA', category: 'Climatização', price: 'R$ 45,00', numPrice: 45, img: FILTER_IMG, qty: 2, priority: 'Alta' },
-  { id: 2, name: 'Lâmpadas LED Inteligentes', category: 'Iluminação', price: 'R$ 120,00', numPrice: 120, img: BULBS_IMG, qty: 4, priority: 'Alta' },
-  { id: 3, name: 'Reposição de Despensa Básica', category: 'Alimentação', price: 'R$ 85,50', numPrice: 85.5, img: PANTRY_IMG, qty: 1, priority: 'Média' },
-  { id: 4, name: 'Organizador de Armário', category: 'Organização', price: 'R$ 55,00', numPrice: 55, img: PANTRY_IMG, qty: 2, priority: 'Média' },
-  { id: 5, name: 'Acessórios para Pet', category: 'Animais', price: 'R$ 30,00', numPrice: 30, img: PANTRY_IMG, qty: 1, priority: 'Baixa' },
-  { id: 6, name: 'Cabos e Conectores Extras', category: 'Eletrônicos', price: 'R$ 22,00', numPrice: 22, img: FILTER_IMG, qty: 3, priority: 'Baixa' },
-];
+// Initial empty states for fresh, clean first access
+const INITIAL_SHOPPING_ITEMS: ShoppingItem[] = [];
+const INITIAL_PRIORITY_ITEMS: PriorityItem[] = [];
+const INITIAL_MAINTENANCE_ITEMS: MaintenanceItem[] = [];
+export const INITIAL_SECTOR_ITEMS: Record<number, SectorItem[]> = {};
+const INITIAL_SECTORS: Sector[] = [];
+const DEFAULT_CATEGORIES: string[] = ['Alimentos', 'Limpeza', 'Higiene', 'Eletrônicos', 'Manutenção', 'Geral'];
 
-const INITIAL_MAINTENANCE_ITEMS: MaintenanceItem[] = [
-  {
-    id: 'm-0',
-    title: 'Limpeza e Desengorduramento da Coifa & Exaustor',
-    sector: 'Cozinha',
-    type: 'Preventiva',
-    priority: 'Alta',
-    status: 'Pendente',
-    dueDate: '2026-08-28',
-    periodicity: 'Mensal',
-    responsible: 'Faça Você Mesmo (DIY)',
-    description: 'Imersão dos filtros metálicos em água quente e desengordurante para evitar acúmulo de óleo e risco de fogo.',
-    hasBudget: false,
-    laborCost: 0,
-    otherCosts: 0,
-    hasItemsToBuy: true,
-    itemSubgroups: [
-      {
-        id: 'sg-0',
-        title: 'Produtos de Limpeza Pesada',
-        items: [
-          { id: 'sub-01', name: 'Desengordurante Concentrado Alcalino', qty: 1, unitPrice: 28.5, purchased: false }
-        ]
-      }
-    ],
-    checklist: [
-      { id: 'chk-01', text: 'Remover filtros metálicos com cuidado', completed: true },
-      { id: 'chk-02', text: 'Mergulhar em solução de água quente com desengordurante por 30min', completed: false },
-      { id: 'chk-03', text: 'Enxaguar, secar completamente e reinstalar na coifa', completed: false }
-    ]
-  },
-  {
-    id: 'm-1',
-    title: 'Higienização dos Ar-Condicionados (Split)',
-    sector: 'Climatização',
-    type: 'Preventiva',
-    priority: 'Alta',
-    status: 'Pendente',
-    dueDate: '2026-09-18',
-    periodicity: 'Semestral',
-    responsible: 'Técnico Especializado',
-    description: 'Limpeza profunda das serpentinas, turbinas e aplicação de bactericida nos 3 aparelhos da casa.',
-    hasBudget: true,
-    laborCost: 350,
-    otherCosts: 0,
-    hasItemsToBuy: true,
-    itemSubgroups: [
-      {
-        id: 'sg-1',
-        title: 'Filtros & Higienização',
-        items: [
-          { id: 'sub-1', name: 'Spray Bactericida para Ar-Condicionado', qty: 1, unitPrice: 42.0, purchased: false },
-          { id: 'sub-2', name: 'Par de Filtros Antibacterianos', qty: 2, unitPrice: 35.0, purchased: false },
-        ]
-      }
-    ],
-    checklist: [
-      { id: 'chk-1', text: 'Desligar disjuntor do ar-condicionado', completed: true },
-      { id: 'chk-2', text: 'Remover carenagens e filtros', completed: false },
-      { id: 'chk-3', text: 'Higienizar evaporadora e turbina', completed: false },
-      { id: 'chk-4', text: 'Testar dreno e fluxo de ar frio', completed: false },
-    ]
-  },
-  {
-    id: 'm-2',
-    title: 'Revisão e Reaperto do Quadro de Disjuntores',
-    sector: 'Elétrica',
-    type: 'Preventiva',
-    priority: 'Crítica',
-    status: 'Pendente',
-    dueDate: '2026-09-12',
-    periodicity: 'Anual',
-    responsible: 'Eletricista Certificado',
-    description: 'Inspeção de aquecimento nos barramentos, reaperto de bornes e teste de disparo do IDR/DPS.',
-    hasBudget: true,
-    laborCost: 280,
-    otherCosts: 0,
-    hasItemsToBuy: true,
-    itemSubgroups: [
-      {
-        id: 'sg-2',
-        title: 'Componentes Elétricos',
-        items: [
-          { id: 'sub-3', name: 'Disjuntor Bipolar 32A Curva C', qty: 1, unitPrice: 48.0, purchased: false },
-          { id: 'sub-4', name: 'Kit Terminais Tubulares Ilhós 4mm/6mm', qty: 1, unitPrice: 22.0, purchased: true },
-        ]
-      }
-    ],
-    checklist: [
-      { id: 'chk-5', text: 'Desligar disjuntor geral do relógio de entrada', completed: false },
-      { id: 'chk-6', text: 'Inspecionar barramentos com chave dinamométrica', completed: false },
-      { id: 'chk-7', text: 'Testar botão de teste mensal do IDR', completed: false },
-    ]
-  },
-  {
-    id: 'm-3',
-    title: 'Troca de Refil e Higienização do Purificador',
-    sector: 'Cozinha',
-    type: 'Preventiva',
-    priority: 'Alta',
-    status: 'Em Andamento',
-    dueDate: '2026-09-08',
-    periodicity: 'Semestral',
-    responsible: 'Faça Você Mesmo (DIY)',
-    description: 'Substituição semestral do elemento filtrante para retenção de cloro, odores e partículas.',
-    hasBudget: true,
-    laborCost: 0,
-    otherCosts: 0,
-    hasItemsToBuy: true,
-    itemSubgroups: [
-      {
-        id: 'sg-3',
-        title: 'Peças e Conexões',
-        items: [
-          { id: 'sub-5', name: 'Refil Original Carbon Block', qty: 1, unitPrice: 89.9, purchased: true },
-          { id: 'sub-6', name: 'Mangueira Atóxica 1/4 (2 metros)', qty: 1, unitPrice: 18.0, purchased: false },
-        ]
-      }
-    ],
-    checklist: [
-      { id: 'chk-8', text: 'Fechar registro de alimentação de água', completed: true },
-      { id: 'chk-9', text: 'Esvaziar reservatório interno', completed: true },
-      { id: 'chk-10', text: 'Instalar novo refil e sangrar primeiros 5 litros', completed: false },
-    ]
-  },
-  {
-    id: 'm-4',
-    title: 'Inspeção e Desobstrução das Calhas e Ralos',
-    sector: 'Área Externa',
-    type: 'Preventiva',
-    priority: 'Média',
-    status: 'Pendente',
-    dueDate: '2026-09-25',
-    periodicity: 'Semestral',
-    responsible: 'Faça Você Mesmo (DIY)',
-    description: 'Remoção de folhas secas, detritos acumulados e teste de vazão com mangueira antes das chuvas.',
-    hasBudget: false,
-    laborCost: 0,
-    otherCosts: 0,
-    hasItemsToBuy: false,
-    itemSubgroups: [],
-    checklist: [
-      { id: 'chk-11', text: 'Posicionar escada com calçado antiderrapante', completed: false },
-      { id: 'chk-12', text: 'Retirar detritos manualmente com luvas', completed: false },
-      { id: 'chk-13', text: 'Testar vazão do bocal de descida com jato', completed: false },
-    ]
-  },
-  {
-    id: 'm-5',
-    title: 'Vedação do Box e Rejunte do Ralo Oculto',
-    sector: 'Banheiros',
-    type: 'Corretiva',
-    priority: 'Média',
-    status: 'Concluída',
-    dueDate: '2026-08-28',
-    periodicity: 'Única',
-    responsible: 'Faça Você Mesmo (DIY)',
-    description: 'Raspagem do silicone antigo ressecado e vedação completa com silicone antimofo no box.',
-    hasBudget: true,
-    laborCost: 0,
-    otherCosts: 0,
-    isPaid: true,
-    hasItemsToBuy: true,
-    itemSubgroups: [
-      {
-        id: 'sg-4',
-        title: 'Materiais de Vedação',
-        items: [
-          { id: 'sub-7', name: 'Tubo de Silicone Acético Branco com Fungicida', qty: 1, unitPrice: 24.5, purchased: true },
-          { id: 'sub-8', name: 'Espátula de acabamento e fita crepe', qty: 1, unitPrice: 12.0, purchased: true },
-        ]
-      }
-    ],
-    checklist: [
-      { id: 'chk-14', text: 'Raspar silicone velho e limpar com álcool', completed: true },
-      { id: 'chk-15', text: 'Aplicar fita de proteção nas laterais', completed: true },
-      { id: 'chk-16', text: 'Passar cordão de silicone uniforme', completed: true },
-      { id: 'chk-17', text: 'Aguardar 24h para secagem total', completed: true },
-    ]
-  },
-  {
-    id: 'm-6',
-    title: 'Lubrificação de Fechaduras e Dobradiças',
-    sector: 'Geral',
-    type: 'Preventiva',
-    priority: 'Baixa',
-    status: 'Pendente',
-    dueDate: '2026-10-05',
-    periodicity: 'Semestral',
-    responsible: 'Faça Você Mesmo (DIY)',
-    description: 'Aplicação de pó de grafite nos tambores das portas e lubrificante nas dobradiças com ruído.',
-    hasBudget: false,
-    laborCost: 0,
-    otherCosts: 0,
-    hasItemsToBuy: false,
-    itemSubgroups: [],
-    checklist: [
-      { id: 'chk-18', text: 'Aplicar grafite no tambor de todas as fechaduras externas', completed: false },
-      { id: 'chk-19', text: 'Lubrificar pinos de portas com rangido', completed: false },
-    ]
-  }
-];
-
-interface AppContextType {
+export interface AppContextType {
   sectors: Sector[];
   sectorItemsMap: Record<number, SectorItem[]>;
   setSectorItemsMap: React.Dispatch<React.SetStateAction<Record<number, SectorItem[]>>>;
@@ -420,64 +216,173 @@ interface AppContextType {
   theme: ThemeMode;
   toggleTheme: () => void;
   setTheme: (theme: ThemeMode) => void;
+
+  // Autenticação e Acesso Privativo
+  isAuthenticated: boolean;
+  isAuthLoaded: boolean;
+  authConfig: AuthUser | null;
+  setupAuth: (name: string, pin: string, hint?: string, rememberMe?: boolean) => void;
+  login: (pin: string, rememberMe?: boolean) => boolean;
+  logout: () => void;
+  changePassword: (currentPin: string, newPin: string, newHint?: string) => boolean;
+  updateProfileName: (name: string) => void;
+  resetAllData: () => void;
+
+  // Perfil Básico e Liberação de Abas
+  basicProfile: BasicProfile | null;
+  isProfileCompleted: boolean;
+  saveBasicProfile: (profile: Omit<BasicProfile, 'isCompleted' | 'completedAt'>) => void;
+  updateBasicProfile: (profile: Partial<BasicProfile>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const INITIAL_SECTOR_ITEMS: Record<number, SectorItem[]> = {
-  1: [
-    { id: 101, name: 'Arroz Branco', desc: 'Pacote 5kg', price: 'R$ 25,90', date: '28/08/2026', priority: 'Média' },
-    { id: 102, name: 'Azeite Extra Virgem', desc: 'Garrafa 500ml', price: 'R$ 35,00', date: '25/08/2026', priority: 'Alta' },
-    { id: 103, name: 'Café Torrado', desc: 'Pacote 500g', price: 'R$ 18,50', date: '30/08/2026', priority: 'Alta' },
-    { id: 104, name: 'Leite Desnatado', desc: 'Caixa com 12L', price: 'R$ 58,00', date: '29/08/2026', priority: 'Média' },
-    { id: 105, name: 'Feijão Carioca', desc: 'Pacote 1kg', price: 'R$ 8,90', date: '30/08/2026', priority: 'Baixa' },
-  ],
-  2: [
-    { id: 201, name: 'Detergente Neutro', desc: 'Frasco 500ml', price: 'R$ 2,50', date: '20/08/2026', priority: 'Baixa' },
-    { id: 202, name: 'Sabão em Pó', desc: 'Caixa 1kg', price: 'R$ 14,90', date: '22/08/2026', priority: 'Média' },
-    { id: 203, name: 'Desinfetante Floral', desc: 'Frasco 2L', price: 'R$ 11,50', date: '27/08/2026', priority: 'Alta' },
-  ],
-  3: [
-    { id: 301, name: 'Cabo USB-C', desc: '2 metros, trançado', price: 'R$ 45,00', date: '15/08/2026', priority: 'Baixa' },
-    { id: 302, name: 'Pilhas AA', desc: 'Pacote com 4', price: 'R$ 12,00', date: '29/08/2026', priority: 'Alta' },
-    { id: 303, name: 'Filtro de Linha', desc: '6 tomadas bivolt', price: 'R$ 69,90', date: '30/08/2026', priority: 'Média' },
-  ]
-};
-
-const INITIAL_SECTORS: Sector[] = [
-  { id: 1, name: 'Alimentos', desc: 'Despensa e Geladeira', items: 5, cost: 'R$ 146,30', iconId: 'Utensils', colorId: 'emerald' },
-  { id: 2, name: 'Limpeza', desc: 'Produtos de Limpeza', items: 3, cost: 'R$ 28,90', iconId: 'SprayCan', colorId: 'blue' },
-  { id: 3, name: 'Eletrônicos', desc: 'Dispositivos e Cabos', items: 3, cost: 'R$ 126,90', iconId: 'Laptop', colorId: 'purple' }
-];
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [isMounted, setIsMounted] = useState(false);
-  
+  const [isLoaded, setIsLoaded] = useState(false);
   const [theme, setThemeState] = useState<ThemeMode>('light');
 
-  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(INITIAL_SHOPPING_ITEMS);
+  // Core business states (clean slate by default for fresh access)
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
+  const [priorityItems, setPriorityItems] = useState<PriorityItem[]>([]);
+  const [maintenances, setMaintenances] = useState<MaintenanceItem[]>([]);
+  const [rawSectors, setRawSectors] = useState<Sector[]>([]);
+  const [shoppingCategories, setShoppingCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [sectorItemsMap, setSectorItemsMap] = useState<Record<number, SectorItem[]>>({});
 
-  const [priorityItems, setPriorityItems] = useState<PriorityItem[]>(INITIAL_PRIORITY_ITEMS);
+  // Authentication & Profile states
+  const [authConfig, setAuthConfig] = useState<AuthUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthLoaded, setIsAuthLoaded] = useState<boolean>(false);
+  const [basicProfile, setBasicProfile] = useState<BasicProfile | null>(null);
 
-  const [maintenances, setMaintenances] = useState<MaintenanceItem[]>(INITIAL_MAINTENANCE_ITEMS);
-
-  const [rawSectors, setRawSectors] = useState<Sector[]>(INITIAL_SECTORS);
-
-  const [shoppingCategories, setShoppingCategories] = useState<string[]>(['Alimentos', 'Limpeza', 'Higiene', 'Eletrônicos', 'Sem categoria']);
-
-
-  const [sectorItemsMap, setSectorItemsMap] = useState<Record<number, SectorItem[]>>(() => {
-    if (typeof window !== 'undefined') {
+  // Client-side initialization and hydration
+  useEffect(() => {
+    const timer = setTimeout(() => {
       try {
-        const savedItemsMap = localStorage.getItem('barreto-sector-items');
-        if (savedItemsMap) {
-          const parsed = JSON.parse(savedItemsMap);
-          if (parsed && typeof parsed === 'object') return parsed;
+        // 1. Clean slate check: if barreto_clean_slate_v3 is not set, wipe old demo data
+        const cleanApplied = localStorage.getItem('barreto_clean_slate_v3');
+        if (!cleanApplied) {
+          localStorage.removeItem('barreto-sectors');
+          localStorage.removeItem('barreto-sector-items');
+          localStorage.removeItem('barreto-shopping-items');
+          localStorage.removeItem('barreto-priority-items');
+          localStorage.removeItem('barreto-maintenances');
+          localStorage.setItem('barreto_clean_slate_v3', 'true');
+        } else {
+          const savedSectors = localStorage.getItem('barreto-sectors');
+          if (savedSectors) {
+            try { setRawSectors(JSON.parse(savedSectors)); } catch {}
+          }
+
+          const savedSectorItems = localStorage.getItem('barreto-sector-items');
+          if (savedSectorItems) {
+            try { setSectorItemsMap(JSON.parse(savedSectorItems)); } catch {}
+          }
+
+          const savedShopping = localStorage.getItem('barreto-shopping-items');
+          if (savedShopping) {
+            try { setShoppingItems(JSON.parse(savedShopping)); } catch {}
+          }
+
+          const savedPriority = localStorage.getItem('barreto-priority-items');
+          if (savedPriority) {
+            try { setPriorityItems(JSON.parse(savedPriority)); } catch {}
+          }
+
+          const savedMaint = localStorage.getItem('barreto-maintenances');
+          if (savedMaint) {
+            try { setMaintenances(JSON.parse(savedMaint)); } catch {}
+          }
+
+          const savedCats = localStorage.getItem('barreto-shopping-categories');
+          if (savedCats) {
+            try { setShoppingCategories(JSON.parse(savedCats)); } catch {}
+          }
         }
-      } catch {}
-    }
-    return INITIAL_SECTOR_ITEMS;
-  });
+
+        // 2. Theme hydration
+        const savedTheme = localStorage.getItem('barreto-theme') as ThemeMode;
+        if (savedTheme === 'dark' || savedTheme === 'light') {
+          setThemeState(savedTheme);
+        }
+
+        // 3. Auth configuration & session (Single Profile Policy)
+        const savedAuth = localStorage.getItem('barreto-auth-config');
+        if (savedAuth) {
+          try {
+            const parsed = JSON.parse(savedAuth);
+            setAuthConfig(parsed);
+            const session = localStorage.getItem('barreto-auth-session');
+            if (session === 'active') {
+              setIsAuthenticated(true);
+            } else {
+              setIsAuthenticated(false);
+            }
+          } catch {
+            const defaultAuth: AuthUser = {
+              name: 'Gabriel Veloso Barreto',
+              pin: '1234',
+              hint: 'Senha privativa cadastrada',
+              rememberMe: true,
+            };
+            setAuthConfig(defaultAuth);
+            setIsAuthenticated(false);
+          }
+        } else {
+          // Perfil único predefinido: bloqueia novos cadastros públicos e preserva o acesso exclusivo
+          const defaultAuth: AuthUser = {
+            name: 'Gabriel Veloso Barreto',
+            pin: '1234',
+            hint: 'Senha privativa cadastrada',
+            rememberMe: true,
+          };
+          setAuthConfig(defaultAuth);
+          try {
+            localStorage.setItem('barreto-auth-config', JSON.stringify(defaultAuth));
+          } catch {}
+          setIsAuthenticated(false);
+        }
+
+        // 4. Basic Profile hydration (Single Profile Policy)
+        const savedProfile = localStorage.getItem('barreto-basic-profile');
+        if (savedProfile) {
+          try {
+            const parsed = JSON.parse(savedProfile);
+            setBasicProfile(parsed);
+          } catch {
+            const defaultProfile: BasicProfile = {
+              fullName: 'Gabriel Veloso Barreto',
+              residenceName: 'Residência Gabriel Barreto',
+              residenceType: 'Casa',
+              isCompleted: true,
+              completedAt: new Date().toISOString(),
+            };
+            setBasicProfile(defaultProfile);
+          }
+        } else {
+          // Mantém o perfil único cadastrado
+          const defaultProfile: BasicProfile = {
+            fullName: 'Gabriel Veloso Barreto',
+            residenceName: 'Residência Gabriel Barreto',
+            residenceType: 'Casa',
+            isCompleted: true,
+            completedAt: new Date().toISOString(),
+          };
+          setBasicProfile(defaultProfile);
+          try {
+            localStorage.setItem('barreto-basic-profile', JSON.stringify(defaultProfile));
+          } catch {}
+        }
+      } catch (err) {
+        console.error('Error hydrating localStorage state:', err);
+      } finally {
+        setIsLoaded(true);
+        setIsAuthLoaded(true);
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Calculate sector items and total cost dynamically from sectorItemsMap
   const sectors = useMemo(() => {
@@ -498,50 +403,201 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [rawSectors, sectorItemsMap]);
 
-  // Persist states to localStorage when modified
+  // Persist states to localStorage only after isLoaded is true
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-sectors', JSON.stringify(rawSectors));
     } catch {}
-  }, [rawSectors]);
+  }, [rawSectors, isLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-sector-items', JSON.stringify(sectorItemsMap));
     } catch {}
-  }, [sectorItemsMap]);
+  }, [sectorItemsMap, isLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-shopping-items', JSON.stringify(shoppingItems));
     } catch {}
-  }, [shoppingItems]);
+  }, [shoppingItems, isLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-priority-items', JSON.stringify(priorityItems));
     } catch {}
-  }, [priorityItems]);
+  }, [priorityItems, isLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-shopping-categories', JSON.stringify(shoppingCategories));
     } catch {}
-  }, [shoppingCategories]);
-
+  }, [shoppingCategories, isLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isLoaded || typeof window === 'undefined') return;
     try {
       localStorage.setItem('barreto-maintenances', JSON.stringify(maintenances));
     } catch {}
-  }, [maintenances]);
+  }, [maintenances, isLoaded]);
 
+  // Synchronize document dark class with current theme state
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const setTheme = (newTheme: ThemeMode) => {
+    setThemeState(newTheme);
+    try {
+      localStorage.setItem('barreto-theme', newTheme);
+    } catch {}
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
+  // Auth Operations
+  const setupAuth = (name: string, pin: string, hint?: string, rememberMe: boolean = true) => {
+    const newConfig: AuthUser = { name, pin, hint, rememberMe };
+    setAuthConfig(newConfig);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem('barreto-auth-config', JSON.stringify(newConfig));
+      if (rememberMe) {
+        localStorage.setItem('barreto-auth-session', 'active');
+      } else {
+        localStorage.removeItem('barreto-auth-session');
+      }
+    } catch {}
+  };
+
+  const login = (inputPin: string, rememberMe: boolean = true): boolean => {
+    if (!authConfig) return false;
+    if (authConfig.pin === inputPin) {
+      setIsAuthenticated(true);
+      try {
+        if (rememberMe) {
+          localStorage.setItem('barreto-auth-session', 'active');
+        } else {
+          localStorage.removeItem('barreto-auth-session');
+        }
+      } catch {}
+      return true;
+    }
+    return false;
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem('barreto-auth-session');
+    } catch {}
+  };
+
+  const changePassword = (currentPin: string, newPin: string, newHint?: string): boolean => {
+    if (!authConfig || authConfig.pin !== currentPin) return false;
+    const updated = {
+      ...authConfig,
+      pin: newPin,
+      hint: newHint !== undefined ? newHint : authConfig.hint,
+    };
+    setAuthConfig(updated);
+    try {
+      localStorage.setItem('barreto-auth-config', JSON.stringify(updated));
+    } catch {}
+    return true;
+  };
+
+  const updateProfileName = (newName: string) => {
+    if (!authConfig) return;
+    const updated = { ...authConfig, name: newName };
+    setAuthConfig(updated);
+    try {
+      localStorage.setItem('barreto-auth-config', JSON.stringify(updated));
+    } catch {}
+  };
+
+  // Check if the basic profile is properly completed
+  const isProfileCompleted = Boolean(
+    basicProfile &&
+    basicProfile.isCompleted &&
+    basicProfile.fullName &&
+    basicProfile.fullName.trim().length > 0 &&
+    basicProfile.residenceName &&
+    basicProfile.residenceName.trim().length > 0
+  );
+
+  const saveBasicProfile = (data: Omit<BasicProfile, 'isCompleted' | 'completedAt'>) => {
+    const newProfile: BasicProfile = {
+      ...data,
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+    };
+    setBasicProfile(newProfile);
+    try {
+      localStorage.setItem('barreto-basic-profile', JSON.stringify(newProfile));
+    } catch {}
+
+    if (data.fullName?.trim() && authConfig) {
+      updateProfileName(data.fullName.trim());
+    }
+  };
+
+  const updateBasicProfile = (updates: Partial<BasicProfile>) => {
+    setBasicProfile(prev => {
+      const updated: BasicProfile = {
+        fullName: updates.fullName !== undefined ? updates.fullName : (prev?.fullName || ''),
+        residenceName: updates.residenceName !== undefined ? updates.residenceName : (prev?.residenceName || ''),
+        residenceType: updates.residenceType !== undefined ? updates.residenceType : (prev?.residenceType || 'Casa'),
+        phone: updates.phone !== undefined ? updates.phone : prev?.phone,
+        cityState: updates.cityState !== undefined ? updates.cityState : prev?.cityState,
+        address: updates.address !== undefined ? updates.address : prev?.address,
+        notes: updates.notes !== undefined ? updates.notes : prev?.notes,
+        isCompleted: true,
+        completedAt: prev?.completedAt || new Date().toISOString(),
+      };
+      try {
+        localStorage.setItem('barreto-basic-profile', JSON.stringify(updated));
+      } catch {}
+      if (updated.fullName?.trim() && authConfig) {
+        updateProfileName(updated.fullName.trim());
+      }
+      return updated;
+    });
+  };
+
+  const resetAllData = () => {
+    try {
+      localStorage.removeItem('barreto-sectors');
+      localStorage.removeItem('barreto-sector-items');
+      localStorage.removeItem('barreto-shopping-items');
+      localStorage.removeItem('barreto-priority-items');
+      localStorage.removeItem('barreto-maintenances');
+      localStorage.removeItem('barreto-shopping-categories');
+      // NOTA: 'barreto-auth-config' e 'barreto-basic-profile' são estritamente preservados!
+      // Mantém o login, a senha cadastrada e o perfil único protegidos.
+      localStorage.setItem('barreto_clean_slate_v3', 'true');
+    } catch {}
+    setRawSectors([]);
+    setSectorItemsMap({});
+    setShoppingItems([]);
+    setPriorityItems([]);
+    setMaintenances([]);
+    setShoppingCategories(DEFAULT_CATEGORIES);
+    // authConfig e basicProfile permanecem ativos e intactos
+  };
+
+  // Sector Operations
   const addSector = (sector: Omit<Sector, 'id' | 'items' | 'cost'> & { id?: number }): number => {
     const newId = sector.id || Date.now();
     const newSector: Sector = {
@@ -568,28 +624,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // Synchronize document dark class with current theme state
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
-  const setTheme = (newTheme: ThemeMode) => {
-    setThemeState(newTheme);
-    try {
-      localStorage.setItem('barreto-theme', newTheme);
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
+  // Shopping List Operations
   const toggleShoppingItem = (id: number) => {
     setShoppingItems(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item));
   };
@@ -625,7 +660,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShoppingItems(prev => prev.map(item => idSet.has(item.id) ? { ...item, priority } : item));
   };
 
-
   const addShoppingCategory = (cat: string) => {
     if (!shoppingCategories.includes(cat)) {
       setShoppingCategories(prev => [...prev, cat]);
@@ -640,6 +674,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShoppingCategories(prev => prev.filter(c => c !== cat));
   };
 
+  // Priority Items Operations
   const addPriorityItem = (item: Omit<PriorityItem, 'id'>) => {
     setPriorityItems(prev => [...prev, { ...item, id: Date.now() }]);
   };
@@ -662,6 +697,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPriorityItems(prev => prev.map(item => item.id === id ? { ...item, priority } : item));
   };
 
+  // Shopping Stats
   const shoppingStats = useMemo(() => {
     const totalCount = shoppingItems.length;
     const pendingItems = shoppingItems.filter(i => !i.checked);
@@ -684,6 +720,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [shoppingItems]);
 
+  // Priority Stats
   const priorityStats = useMemo(() => {
     const totalItemsCount = priorityItems.length;
     const totalUnitsCount = priorityItems.reduce((acc, item) => acc + item.qty, 0);
@@ -720,6 +757,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [priorityItems]);
 
+  // Maintenance Operations
   const addMaintenance = (item: Omit<MaintenanceItem, 'id'>) => {
     const newId = `m-${Date.now()}`;
     setMaintenances(prev => [
@@ -973,6 +1011,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       theme,
       toggleTheme,
       setTheme,
+      isAuthenticated,
+      isAuthLoaded,
+      authConfig,
+      setupAuth,
+      login,
+      logout,
+      changePassword,
+      updateProfileName,
+      resetAllData,
+      basicProfile,
+      isProfileCompleted,
+      saveBasicProfile,
+      updateBasicProfile,
     }}>
       {children}
     </AppContext.Provider>
