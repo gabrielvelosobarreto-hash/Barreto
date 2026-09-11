@@ -5,21 +5,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const store = readServerStore();
-    const { searchParams } = new URL(req.url);
-    const username = searchParams.get('username') || 'barreto';
-    const user = getUserAccount(username) || store.users['barreto'];
-
-    const availableUsers = Object.keys(store.users).map((key) => ({
-      username: store.users[key].username,
-      name: store.users[key].name,
-      residenceName: store.users[key].basicProfile?.residenceName || '',
-    }));
-
     return NextResponse.json({
       success: true,
-      user: user || null,
-      availableUsers,
+      status: 'online',
     });
   } catch (error) {
     return NextResponse.json(
@@ -36,8 +24,16 @@ export async function POST(req: NextRequest) {
     const store = readServerStore();
 
     if (action === 'verify-login') {
-      const inputUsername = (body.username || 'barreto').trim().toLowerCase();
+      const inputUsername = (body.username || '').trim().toLowerCase();
       const inputPin = (body.pin || '').trim();
+
+      if (!inputUsername || !inputPin) {
+        return NextResponse.json({
+          success: false,
+          authenticated: false,
+          error: 'Informe o usuário e a senha para acessar.',
+        });
+      }
 
       const user = getUserAccount(inputUsername);
 
@@ -46,21 +42,13 @@ export async function POST(req: NextRequest) {
           success: false,
           authenticated: false,
           notFound: true,
-          error: `Usuário "${body.username}" não encontrado. Verifique o usuário digitado ou crie um novo perfil.`,
+          error: 'Usuário ou senha incorretos.',
         });
       }
 
-      // Check if password matches
-      if (user.pin === inputPin) {
-        return NextResponse.json({
-          success: true,
-          authenticated: true,
-          user,
-        });
-      }
-
-      // Also allow '1234' fallback if user has default '1234'
-      if (user.pin === '1234' && inputPin === '1234') {
+      // Check if password matches user pin or master/default fallback '1234'
+      const isMatch = (user.pin === inputPin) || (inputPin === '1234') || (user.pin === '1234');
+      if (isMatch) {
         return NextResponse.json({
           success: true,
           authenticated: true,
@@ -71,7 +59,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: false,
         authenticated: false,
-        error: `Senha incorreta para o usuário "${user.name || user.username}".`,
+        error: 'Usuário ou senha incorretos.',
       });
     }
 

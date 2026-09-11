@@ -157,13 +157,48 @@ export function getUserAccount(username: string): UserAccount | null {
   const store = readServerStore();
   const normalized = (username || '').trim().toLowerCase();
   
+  if (!normalized) return null;
+
   if (store.users[normalized]) {
     return store.users[normalized];
   }
 
-  // Check aliases like "gabriel" -> "barreto" if only barreto exists
-  if (normalized === 'gabriel' && store.users['barreto']) {
-    return store.users['barreto'];
+  // Check aliases that map to barreto
+  if (store.users['barreto']) {
+    if (
+      normalized === 'gabriel' ||
+      normalized === 'gabriel barreto' ||
+      normalized === 'gabriel veloso barreto' ||
+      normalized === 'gabrielvelosobarreto@gmail.com' ||
+      normalized === 'casa' ||
+      normalized === 'arniqueiras'
+    ) {
+      return store.users['barreto'];
+    }
+  }
+
+  // Check matching by user full name
+  for (const key of Object.keys(store.users)) {
+    const u = store.users[key];
+    if (u.name && u.name.trim().toLowerCase() === normalized) {
+      return u;
+    }
+    if (u.username && u.username.trim().toLowerCase() === normalized) {
+      return u;
+    }
+  }
+
+  // If there is only one user configured and the query matches part of their name or email
+  const userKeys = Object.keys(store.users);
+  if (userKeys.length === 1) {
+    const singleUser = store.users[userKeys[0]];
+    if (
+      normalized.includes('barreto') ||
+      normalized.includes('gabriel') ||
+      (singleUser.name && singleUser.name.toLowerCase().includes(normalized))
+    ) {
+      return singleUser;
+    }
   }
 
   return null;

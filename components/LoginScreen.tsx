@@ -5,17 +5,9 @@ import { Lock, User, KeyRound, Eye, EyeOff, Sun, Moon, ArrowRight, AlertCircle, 
 import { useApp } from '@/lib/context/AppContext';
 
 export default function LoginScreen() {
-  const { login, registerOrResetUser, theme, toggleTheme } = useApp();
+  const { login, registerOrResetUser, resetPassword, theme, toggleTheme } = useApp();
 
-  const [username, setUsername] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedUser = localStorage.getItem('barreto-active-user');
-        if (savedUser) return savedUser;
-      } catch {}
-    }
-    return 'barreto';
-  });
+  const [username, setUsername] = useState<string>('');
   const [pin, setPin] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -24,6 +16,7 @@ export default function LoginScreen() {
 
   // Modal de cadastro ou redefinição de perfil/senha
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'reset' | 'register'>('reset');
   const [modalUsername, setModalUsername] = useState('');
   const [modalFullName, setModalFullName] = useState('');
   const [modalResidenceName, setModalResidenceName] = useState('');
@@ -54,7 +47,7 @@ export default function LoginScreen() {
       const res = await login(username.trim(), pin.trim(), rememberMe);
       setIsSubmitting(false);
       if (!res.success) {
-        setErrorMessage(res.message || 'Usuário ou senha incorretos. Verifique suas credenciais.');
+        setErrorMessage(res.message || 'Usuário ou senha incorretos.');
       }
     } catch {
       setIsSubmitting(false);
@@ -67,7 +60,7 @@ export default function LoginScreen() {
     setModalError('');
 
     if (!modalUsername.trim()) {
-      setModalError('Informe um nome de usuário.');
+      setModalError('Informe o nome de usuário.');
       return;
     }
 
@@ -83,23 +76,39 @@ export default function LoginScreen() {
 
     setIsModalSubmitting(true);
     try {
-      const res = await registerOrResetUser({
-        username: modalUsername.trim().toLowerCase(),
-        pin: modalPin.trim(),
-        fullName: modalFullName.trim() || undefined,
-        residenceName: modalResidenceName.trim() || undefined,
-        residenceType: modalResidenceType,
-      });
-
-      if (res.success) {
-        setModalSuccess(true);
-        setTimeout(() => {
-          setIsModalOpen(false);
-          setModalSuccess(false);
-          setUsername(modalUsername.trim().toLowerCase());
-        }, 700);
+      if (modalMode === 'reset') {
+        const success = await resetPassword(
+          modalPin.trim(),
+          '',
+          modalUsername.trim().toLowerCase()
+        );
+        if (success) {
+          setModalSuccess(true);
+          setTimeout(() => {
+            setIsModalOpen(false);
+            setModalSuccess(false);
+          }, 700);
+        } else {
+          setModalError('Não foi possível redefinir a senha. Verifique o usuário.');
+        }
       } else {
-        setModalError(res.message || 'Não foi possível salvar o perfil. Tente novamente.');
+        const res = await registerOrResetUser({
+          username: modalUsername.trim().toLowerCase(),
+          pin: modalPin.trim(),
+          fullName: modalFullName.trim() || undefined,
+          residenceName: modalResidenceName.trim() || undefined,
+          residenceType: modalResidenceType,
+        });
+
+        if (res.success) {
+          setModalSuccess(true);
+          setTimeout(() => {
+            setIsModalOpen(false);
+            setModalSuccess(false);
+          }, 700);
+        } else {
+          setModalError(res.message || 'Não foi possível cadastrar o usuário. Tente novamente.');
+        }
       }
     } catch {
       setModalError('Erro na comunicação com o servidor.');
@@ -108,11 +117,21 @@ export default function LoginScreen() {
     }
   };
 
-  const openRegisterModal = () => {
+  const openResetModal = () => {
+    setModalMode('reset');
     setModalError('');
-    setModalUsername(username || 'barreto');
-    setModalFullName(username.toLowerCase() === 'barreto' ? 'Gabriel Veloso Barreto' : '');
-    setModalResidenceName(username.toLowerCase() === 'barreto' ? 'Arniqueiras' : '');
+    setModalUsername(username.trim());
+    setModalPin('');
+    setModalConfirmPin('');
+    setIsModalOpen(true);
+  };
+
+  const openRegisterModal = () => {
+    setModalMode('register');
+    setModalError('');
+    setModalUsername(username.trim());
+    setModalFullName('');
+    setModalResidenceName('');
     setModalResidenceType('Casa');
     setModalPin('');
     setModalConfirmPin('');
@@ -175,14 +194,16 @@ export default function LoginScreen() {
             </label>
             <div className="relative">
               <input
+                id="login-username-input"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="ex: barreto"
+                placeholder="Digite seu usuário"
                 required
                 autoCapitalize="none"
                 autoCorrect="off"
-                className="w-full px-3.5 py-2.5 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium placeholder:font-normal"
+                autoComplete="username"
+                className="w-full px-3.5 py-2.5 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium placeholder:font-normal placeholder:text-slate-400"
               />
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             </div>
@@ -195,12 +216,14 @@ export default function LoginScreen() {
             </label>
             <div className="relative">
               <input
+                id="login-password-input"
                 type={showPassword ? 'text' : 'password'}
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-3.5 py-2.5 pl-10 pr-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all tracking-wider font-medium placeholder:tracking-normal"
+                autoComplete="current-password"
+                className="w-full px-3.5 py-2.5 pl-10 pr-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all tracking-wider font-medium placeholder:tracking-normal placeholder:text-slate-400"
               />
               <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <button
@@ -229,6 +252,7 @@ export default function LoginScreen() {
 
           {/* Botão de Entrar */}
           <button
+            id="login-submit-button"
             type="submit"
             disabled={isSubmitting}
             className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-2"
@@ -247,15 +271,26 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        {/* Link para Configuração/Redefinição de Perfil ou Novo Usuário */}
-        <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
+        {/* Links de Suporte e Acesso */}
+        <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 text-center">
           <button
+            id="login-reset-password-button"
             type="button"
-            onClick={openRegisterModal}
+            onClick={openResetModal}
             className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium transition-colors hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
           >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Redefinir senha de acesso</span>
+          </button>
+          
+          <button
+            id="login-register-user-button"
+            type="button"
+            onClick={openRegisterModal}
+            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-medium transition-colors hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
+          >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>Cadastrar novo perfil ou redefinir senha</span>
+            <span>Cadastrar novo perfil de morador</span>
           </button>
         </div>
 
@@ -267,7 +302,7 @@ export default function LoginScreen() {
         </div>
       </div>
 
-      {/* Modal Seguro de Cadastro ou Redefinição de Usuário */}
+      {/* Modal de Redefinição ou Cadastro de Usuário */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -287,10 +322,12 @@ export default function LoginScreen() {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Vincular Usuário e Perfil
+                {modalMode === 'reset' ? 'Redefinir Senha de Acesso' : 'Cadastrar Novo Perfil'}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                Configure as credenciais e dados da residência que serão carregados neste acesso.
+                {modalMode === 'reset' 
+                  ? 'Informe seu usuário e defina uma nova senha para recuperar o acesso.'
+                  : 'Configure as credenciais e dados da residência que serão carregados neste acesso.'}
               </p>
             </div>
 
@@ -304,70 +341,76 @@ export default function LoginScreen() {
             {modalSuccess ? (
               <div className="py-6 text-center text-emerald-600 dark:text-emerald-400 flex flex-col items-center">
                 <CheckCircle2 className="w-10 h-10 mb-2 animate-bounce" />
-                <span className="text-sm font-semibold">Usuário vinculado com sucesso! Entrando...</span>
+                <span className="text-sm font-semibold">
+                  {modalMode === 'reset' ? 'Senha atualizada com sucesso! Entrando...' : 'Perfil cadastrado com sucesso! Entrando...'}
+                </span>
               </div>
             ) : (
               <form onSubmit={handleModalSubmit} className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nome de Usuário (Login)
+                    Nome de Usuário
                   </label>
                   <input
                     type="text"
                     value={modalUsername}
                     onChange={(e) => setModalUsername(e.target.value)}
-                    placeholder="ex: barreto"
+                    placeholder="ex: usuario"
                     required
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
 
+                {modalMode === 'register' && (
+                  <>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Nome Completo
+                      </label>
+                      <input
+                        type="text"
+                        value={modalFullName}
+                        onChange={(e) => setModalFullName(e.target.value)}
+                        placeholder="ex: Nome Sobrenome"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Residência
+                        </label>
+                        <input
+                          type="text"
+                          value={modalResidenceName}
+                          onChange={(e) => setModalResidenceName(e.target.value)}
+                          placeholder="ex: Residência"
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Tipo
+                        </label>
+                        <select
+                          value={modalResidenceType}
+                          onChange={(e) => setModalResidenceType(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                        >
+                          <option value="Casa">Casa</option>
+                          <option value="Apartamento">Apartamento</option>
+                          <option value="Chácara">Chácara</option>
+                          <option value="Sobrado">Sobrado</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nome Completo do Responsável
-                  </label>
-                  <input
-                    type="text"
-                    value={modalFullName}
-                    onChange={(e) => setModalFullName(e.target.value)}
-                    placeholder="ex: Gabriel Veloso Barreto"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Residência
-                    </label>
-                    <input
-                      type="text"
-                      value={modalResidenceName}
-                      onChange={(e) => setModalResidenceName(e.target.value)}
-                      placeholder="ex: Arniqueiras"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Tipo
-                    </label>
-                    <select
-                      value={modalResidenceType}
-                      onChange={(e) => setModalResidenceType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                    >
-                      <option value="Casa">Casa</option>
-                      <option value="Apartamento">Apartamento</option>
-                      <option value="Chácara">Chácara</option>
-                      <option value="Sobrado">Sobrado</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Senha de Acesso
+                    {modalMode === 'reset' ? 'Nova Senha de Acesso' : 'Senha de Acesso'}
                   </label>
                   <div className="relative">
                     <input
@@ -396,7 +439,7 @@ export default function LoginScreen() {
                     type={showModalPassword ? 'text' : 'password'}
                     value={modalConfirmPin}
                     onChange={(e) => setModalConfirmPin(e.target.value)}
-                    placeholder="Repita a senha"
+                    placeholder="Repita a nova senha"
                     required
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
@@ -418,7 +461,7 @@ export default function LoginScreen() {
                     {isModalSubmitting ? (
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      'Salvar e Entrar'
+                      modalMode === 'reset' ? 'Salvar Nova Senha e Entrar' : 'Cadastrar e Entrar'
                     )}
                   </button>
                 </div>
