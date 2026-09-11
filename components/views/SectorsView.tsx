@@ -32,6 +32,7 @@ import {
 } from '@/lib/sectorThemeData';
 import SectorCustomizationModal from './SectorCustomizationModal';
 import { useApp, type Sector } from '@/lib/context/AppContext';
+import { parseCurrency, formatCurrency } from '@/lib/utils';
 
 const INITIAL_MOCK_ITEMS: Record<number, any[]> = {
   1: [
@@ -401,8 +402,8 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
       return;
     }
     
-    const numPrice = parseFloat(newItemData.price.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-    const formattedPrice = numPrice > 0 ? `R$ ${numPrice.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+    const numPrice = parseCurrency(newItemData.price);
+    const formattedPrice = numPrice > 0 ? formatCurrency(numPrice) : 'R$ 0,00';
 
     if (editingItem) {
       setSectorItemsMap(prev => {
@@ -414,7 +415,11 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
             name: newItemData.name.trim(),
             desc: newItemData.desc.trim() || 'Sem descrição',
             price: formattedPrice,
-            priority: newItemData.priority
+            numPrice: numPrice,
+            qty: typeof i.qty === 'number' && i.qty >= 0 ? i.qty : 1,
+            priority: newItemData.priority,
+            sectorId: detailsSector.id,
+            sectorName: detailsSector.name
           } : i)
         };
       });
@@ -425,8 +430,12 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
         name: newItemData.name.trim(),
         desc: newItemData.desc.trim() || 'Sem descrição',
         price: formattedPrice,
+        numPrice: numPrice,
+        qty: 1,
         date: new Date().toLocaleDateString('pt-BR'),
-        priority: newItemData.priority
+        priority: newItemData.priority,
+        sectorId: detailsSector.id,
+        sectorName: detailsSector.name
       };
 
       setSectorItemsMap(prev => {
@@ -499,10 +508,9 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
     const items = sectorItemsMap[sectorId] || [];
     const count = items.length;
     const costNum = items.reduce((acc, item) => {
-      const val = parseFloat(String(item.price).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-      return acc + val;
+      return acc + parseCurrency(item.price);
     }, 0);
-    return { count, cost: `R$ ${costNum.toFixed(2).replace('.', ',')}` };
+    return { count, cost: formatCurrency(costNum) };
   };
 
   // Itens ordenados dinamicamente
@@ -510,7 +518,7 @@ export default function SectorsView({ targetSectorId, targetItemId, onTargetHand
     if (!detailsSector) return [];
     const list = [...(sectorItemsMap[detailsSector.id] || [])];
     
-    const getPriceNum = (p: string) => parseFloat(String(p).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+    const getPriceNum = (p: string) => parseCurrency(p);
     const priorityWeight: Record<string, number> = { 'Alta': 1, 'Média': 2, 'Baixa': 3 };
 
     return list.sort((a, b) => {

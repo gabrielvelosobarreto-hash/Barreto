@@ -202,7 +202,8 @@ export default function LoginScreen() {
                 required
                 autoCapitalize="none"
                 autoCorrect="off"
-                autoComplete="username"
+                autoComplete="off"
+                spellCheck="false"
                 className="w-full px-3.5 py-2.5 pl-10 pr-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium placeholder:font-normal placeholder:text-slate-400"
               />
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -222,7 +223,8 @@ export default function LoginScreen() {
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="••••••••"
                 required
-                autoComplete="current-password"
+                autoComplete="off"
+                spellCheck="false"
                 className="w-full px-3.5 py-2.5 pl-10 pr-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all tracking-wider font-medium placeholder:tracking-normal placeholder:text-slate-400"
               />
               <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />

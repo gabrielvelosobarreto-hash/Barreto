@@ -723,9 +723,6 @@ export function Sidebar({
         </div>
         <div>
           <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100 block leading-tight">Barreto App</span>
-          <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400 block truncate max-w-[140px]">
-            {basicProfile?.residenceName || 'Gestão Residencial'}
-          </span>
         </div>
       </div>
 

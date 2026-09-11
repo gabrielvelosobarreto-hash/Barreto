@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { PriorityFilterType, TabType, MaintenanceMacroTab } from '@/app/page';
 import { useApp, type PriorityType } from '@/lib/context/AppContext';
+import { parseCurrency, formatCurrency } from '@/lib/utils';
 
 const FILTER_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuCT4JVy2QYtBYNeSK0tcgqaJ-yFmDtSkdhC6Bwsc_pfoSksrfT7AWr0dNTBjLITm4IyuZYX7kuqkVQXaItletFxRHAnIwE5AGN4y__0NOeuGoGUj6EO9EQ4092ZNAZn7ec7XsnXOCYLEswAFNN44918KeFUN67s4d_AB-WkFReHYLlgNwlfLncp5r-J0LxlgiNknQrCKOD9dXy8-nv5QnjAAoGpRuBGNhi0PtDnlEDqnBxexK5wIQVzHQ";
 
@@ -40,6 +41,7 @@ export default function PrioritiesView({
     updatePriorityItemLevel,
     priorityStats,
     sectors,
+    updateSector,
     sectorItemsMap,
     setSectorItemsMap
   } = useApp();
@@ -49,24 +51,125 @@ export default function PrioritiesView({
   const activeFilter = onPriorityChange ? initialPriority : (localPriority ?? initialPriority);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Lista unificada e sempre atualizada integrando Setores e Prioridades em tempo real
   const derivedPriorityItems = useMemo(() => {
     const items: any[] = [];
-    sectors.forEach(sec => {
-      const secItems = sectorItemsMap[sec.id] || [];
-      secItems.forEach(si => {
-        items.push({
-          ...si,
-          sectorId: sec.id,
-          sectorName: sec.name,
-          category: sec.name,
-          img: FILTER_IMG,
-          numPrice: parseFloat(String(si.price).replace(/[^\d.,]/g, '').replace(',', '.')) || 0,
-          qty: 1
+    const seenIds = new Set<number>();
+
+    // 1. Prioriza todos os itens de sectorItemsMap (convertendo chaves numéricas ou em string)
+    Object.entries(sectorItemsMap).forEach(([secIdStr, secItems]) => {
+      const numSecId = Number(secIdStr);
+      const sectorObj = sectors.find(s => s.id === numSecId || String(s.id) === String(secIdStr));
+      const sectorName = sectorObj?.name || 'Setor';
+
+      if (Array.isArray(secItems)) {
+        secItems.forEach(si => {
+          if (!si || typeof si.id !== 'number') return;
+          seenIds.add(si.id);
+
+          const rawNum = typeof si.numPrice === 'number' && !isNaN(si.numPrice)
+            ? si.numPrice
+            : parseCurrency(si.price);
+          const numPrice = isNaN(rawNum) ? 0 : rawNum;
+          const qty = typeof (si as any).qty === 'number' && !isNaN((si as any).qty) && (si as any).qty >= 0
+            ? (si as any).qty
+            : 1;
+          const validPriority: PriorityType = (si.priority === 'Alta' || si.priority === 'Baixa') ? si.priority : 'Média';
+
+          items.push({
+            ...si,
+            sectorId: numSecId,
+            sectorName,
+            category: sectorName,
+            img: FILTER_IMG,
+            numPrice,
+            qty,
+            priority: validPriority,
+            price: si.price || formatCurrency(numPrice),
+          });
         });
-      });
+      }
     });
+
+    // 2. Incorpora itens avulsos de priorityItems que não estejam em sectorItemsMap
+    if (Array.isArray(priorityItems)) {
+      priorityItems.forEach(pi => {
+        if (pi && typeof pi.id === 'number' && !seenIds.has(pi.id)) {
+          const rawNum = typeof pi.numPrice === 'number' && !isNaN(pi.numPrice)
+            ? pi.numPrice
+            : parseCurrency(pi.price);
+          const numPrice = isNaN(rawNum) ? 0 : rawNum;
+          const qty = typeof pi.qty === 'number' && !isNaN(pi.qty) && pi.qty >= 0 ? pi.qty : 1;
+          const validPriority: PriorityType = (pi.priority === 'Alta' || pi.priority === 'Baixa') ? pi.priority : 'Média';
+
+          items.push({
+            ...pi,
+            numPrice,
+            qty,
+            priority: validPriority,
+            category: pi.category || 'Geral',
+            price: pi.price || formatCurrency(numPrice),
+            img: pi.img || FILTER_IMG,
+          });
+        }
+      });
+    }
+
     return items;
-  }, [sectors, sectorItemsMap]);
+  }, [priorityItems, sectors, sectorItemsMap]);
+
+  // Estatísticas calculadas em tempo real com base nos itens atuais (100% à prova de NaN)
+  const effectivePriorityStats = useMemo(() => {
+    const getItemCost = (item: any) => {
+      const rawPrice = typeof item.numPrice === 'number' && !isNaN(item.numPrice)
+        ? item.numPrice
+        : parseCurrency(item.price);
+      const price = isNaN(rawPrice) ? 0 : rawPrice;
+      const rawQty = typeof item.qty === 'number' && !isNaN(item.qty) && item.qty >= 0 ? item.qty : 1;
+      return price * rawQty;
+    };
+
+    const getItemUnits = (item: any) => {
+      return typeof item.qty === 'number' && !isNaN(item.qty) && item.qty >= 0 ? item.qty : 1;
+    };
+
+    const totalItemsCount = derivedPriorityItems.length;
+    const totalUnitsCount = derivedPriorityItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+    const totalCost = derivedPriorityItems.reduce((acc, item) => acc + getItemCost(item), 0);
+
+    const highItems = derivedPriorityItems.filter(i => i.priority === 'Alta');
+    const highCost = highItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const highUnits = highItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+
+    const medItems = derivedPriorityItems.filter(i => i.priority === 'Média');
+    const medCost = medItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const medUnits = medItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+
+    const lowItems = derivedPriorityItems.filter(i => i.priority === 'Baixa');
+    const lowCost = lowItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const lowUnits = lowItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+
+    return {
+      totalItemsCount,
+      totalUnitsCount,
+      totalCost,
+      highCount: highItems.length,
+      highUnits,
+      highCost,
+      highPercent: totalCost > 0 ? Math.round((highCost / totalCost) * 100) : 0,
+      medCount: medItems.length,
+      medUnits,
+      medCost,
+      medPercent: totalCost > 0 ? Math.round((medCost / totalCost) * 100) : 0,
+      lowCount: lowItems.length,
+      lowUnits,
+      lowCost,
+      lowPercent: totalCost > 0 ? Math.round((lowCost / totalCost) * 100) : 0,
+    };
+  }, [derivedPriorityItems]);
+
+  // Alias para garantir sincronismo perfeito e dinâmico na tela
+  const stats = effectivePriorityStats;
   
   // Add edit modal state
   const [editingSectorItem, setEditingSectorItem] = useState(null);
@@ -80,19 +183,21 @@ export default function PrioritiesView({
     setEditingSectorItem(item.id);
     setEditingItemSectorId(item.sectorId);
     setEditName(item.name);
-    setEditDesc(item.desc);
-    setEditPrice(item.price);
+    setEditDesc(item.desc || '');
+    setEditPrice(item.price || '');
     setEditPriority(item.priority || 'Média');
   };
 
   const saveEdit = () => {
     if (!editName.trim() || !editingItemSectorId) return;
+    const numPrice = parseCurrency(editPrice);
+    const formattedPrice = numPrice > 0 ? formatCurrency(numPrice) : 'R$ 0,00';
     setSectorItemsMap(prev => {
       const sectorItems = prev[editingItemSectorId] || [];
       return {
         ...prev,
         [editingItemSectorId]: sectorItems.map(i => i.id === editingSectorItem ? {
-          ...i, name: editName, desc: editDesc, price: editPrice, priority: editPriority
+          ...i, name: editName.trim(), desc: editDesc.trim(), price: formattedPrice, priority: editPriority
         } : i)
       };
     });
@@ -138,24 +243,22 @@ export default function PrioritiesView({
     }
     setNameError(false);
     
-    const numPrice = parseFloat(newItemPrice.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-    const priceStr = numPrice > 0 ? `R$ ${numPrice.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
-    
-    setSectorItemsMap(prev => {
-      const sectorId = Number(newItemCategory);
-      const items = prev[sectorId] || [];
-      return {
-        ...prev,
-        [sectorId]: [...items, {
-          id: Date.now(),
-          name: newItemName.trim(),
-          desc: '',
-          price: priceStr,
-          date: new Date().toLocaleDateString('pt-BR'),
-          priority: newItemPriority
-        }]
-      };
-    });
+    const numPrice = parseCurrency(newItemPrice);
+    const priceStr = numPrice > 0 ? formatCurrency(numPrice) : 'R$ 0,00';
+    const sectorId = Number(newItemCategory);
+    const targetSector = sectors.find(s => s.id === sectorId);
+
+    addPriorityItem({
+      name: newItemName.trim(),
+      category: targetSector?.name || 'Geral',
+      price: priceStr,
+      numPrice,
+      img: FILTER_IMG,
+      qty: 1,
+      priority: newItemPriority,
+      sectorId,
+      sectorName: targetSector?.name || 'Geral',
+    } as any);
 
     setIsModalOpen(false);
     setNewItemName('');
@@ -249,11 +352,11 @@ export default function PrioritiesView({
     if (activeFilter === 'Alta') {
       return {
         title: 'Investimento • Alta',
-        levelCost: priorityStats.highCost,
-        levelCount: priorityStats.highCount,
-        levelUnits: priorityStats.highUnits,
-        levelPercent: priorityStats.highPercent,
-        otherCost: Math.max(0, priorityStats.totalCost - priorityStats.highCost),
+        levelCost: stats.highCost,
+        levelCount: stats.highCount,
+        levelUnits: stats.highUnits,
+        levelPercent: stats.highPercent,
+        otherCost: Math.max(0, stats.totalCost - stats.highCost),
         accentColor: 'bg-rose-500',
         textColor: 'text-rose-700 dark:text-rose-300',
         badgeBg: 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800/60',
@@ -262,11 +365,11 @@ export default function PrioritiesView({
     if (activeFilter === 'Média') {
       return {
         title: 'Investimento • Média',
-        levelCost: priorityStats.medCost,
-        levelCount: priorityStats.medCount,
-        levelUnits: priorityStats.medUnits,
-        levelPercent: priorityStats.medPercent,
-        otherCost: Math.max(0, priorityStats.totalCost - priorityStats.medCost),
+        levelCost: stats.medCost,
+        levelCount: stats.medCount,
+        levelUnits: stats.medUnits,
+        levelPercent: stats.medPercent,
+        otherCost: Math.max(0, stats.totalCost - stats.medCost),
         accentColor: 'bg-amber-500',
         textColor: 'text-amber-700 dark:text-amber-300',
         badgeBg: 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
@@ -275,18 +378,18 @@ export default function PrioritiesView({
     if (activeFilter === 'Baixa') {
       return {
         title: 'Investimento • Baixa',
-        levelCost: priorityStats.lowCost,
-        levelCount: priorityStats.lowCount,
-        levelUnits: priorityStats.lowUnits,
-        levelPercent: priorityStats.lowPercent,
-        otherCost: Math.max(0, priorityStats.totalCost - priorityStats.lowCost),
+        levelCost: stats.lowCost,
+        levelCount: stats.lowCount,
+        levelUnits: stats.lowUnits,
+        levelPercent: stats.lowPercent,
+        otherCost: Math.max(0, stats.totalCost - stats.lowCost),
         accentColor: 'bg-blue-500',
         textColor: 'text-blue-700 dark:text-blue-300',
         badgeBg: 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
       };
     }
     return null;
-  }, [activeFilter, priorityStats]);
+  }, [activeFilter, stats]);
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -411,7 +514,7 @@ export default function PrioritiesView({
                   R$ {activeLevelInvestment.levelCost.toFixed(2).replace('.', ',')}
                 </span>
                 <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                  de R$ {priorityStats.totalCost.toFixed(2).replace('.', ',')} (Total)
+                  de R$ {stats.totalCost.toFixed(2).replace('.', ',')} (Total)
                 </span>
                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${activeLevelInvestment.badgeBg}`}>
                   {activeLevelInvestment.levelPercent}%
@@ -455,7 +558,7 @@ export default function PrioritiesView({
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                   <span className="text-slate-400 dark:text-slate-500 font-medium block">Total de Itens</span>
                   <span className="text-slate-900 dark:text-slate-100 font-bold text-sm">
-                    {priorityStats.totalItemsCount} produtos ({priorityStats.totalUnitsCount} un.)
+                    {stats.totalItemsCount} produtos ({stats.totalUnitsCount} un.)
                   </span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 col-span-2 sm:col-span-1">
@@ -471,10 +574,10 @@ export default function PrioritiesView({
             <div className="space-y-4">
               <div className="flex flex-wrap items-baseline gap-3">
                 <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                  R$ {priorityStats.totalCost.toFixed(2).replace('.', ',')}
+                  R$ {stats.totalCost.toFixed(2).replace('.', ',')}
                 </span>
                 <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                  {priorityStats.totalItemsCount} produtos ({priorityStats.totalUnitsCount} un.)
+                  {stats.totalItemsCount} produtos ({stats.totalUnitsCount} un.)
                 </span>
                 <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                   100%
@@ -491,18 +594,18 @@ export default function PrioritiesView({
                 <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden flex border border-slate-200/60 dark:border-slate-700/60">
                   <div 
                     className="bg-rose-500 h-full transition-all duration-500"
-                    style={{ width: `${priorityStats.highPercent}%` }}
-                    title={`Alta: R$ ${priorityStats.highCost.toFixed(2)} (${priorityStats.highPercent}%)`}
+                    style={{ width: `${stats.highPercent}%` }}
+                    title={`Alta: R$ ${stats.highCost.toFixed(2)} (${stats.highPercent}%)`}
                   />
                   <div 
                     className="bg-amber-500 h-full transition-all duration-500"
-                    style={{ width: `${priorityStats.medPercent}%` }}
-                    title={`Média: R$ ${priorityStats.medCost.toFixed(2)} (${priorityStats.medPercent}%)`}
+                    style={{ width: `${stats.medPercent}%` }}
+                    title={`Média: R$ ${stats.medCost.toFixed(2)} (${stats.medPercent}%)`}
                   />
                   <div 
                     className="bg-blue-500 h-full transition-all duration-500"
-                    style={{ width: `${priorityStats.lowPercent}%` }}
-                    title={`Baixa: R$ ${priorityStats.lowCost.toFixed(2)} (${priorityStats.lowPercent}%)`}
+                    style={{ width: `${stats.lowPercent}%` }}
+                    title={`Baixa: R$ ${stats.lowCost.toFixed(2)} (${stats.lowPercent}%)`}
                   />
                 </div>
               </div>
@@ -518,11 +621,11 @@ export default function PrioritiesView({
                       <span className="w-2 h-2 rounded-full bg-rose-500" /> Alta
                     </div>
                     <div className="text-slate-900 dark:text-slate-100 font-extrabold text-sm mt-0.5">
-                      R$ {priorityStats.highCost.toFixed(2).replace('.', ',')}
+                      R$ {stats.highCost.toFixed(2).replace('.', ',')}
                     </div>
                   </div>
                   <span className="text-xs font-bold text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800/60">
-                    {priorityStats.highPercent}%
+                    {stats.highPercent}%
                   </span>
                 </button>
 
@@ -535,11 +638,11 @@ export default function PrioritiesView({
                       <span className="w-2 h-2 rounded-full bg-amber-500" /> Média
                     </div>
                     <div className="text-slate-900 dark:text-slate-100 font-extrabold text-sm mt-0.5">
-                      R$ {priorityStats.medCost.toFixed(2).replace('.', ',')}
+                      R$ {stats.medCost.toFixed(2).replace('.', ',')}
                     </div>
                   </div>
                   <span className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/60">
-                    {priorityStats.medPercent}%
+                    {stats.medPercent}%
                   </span>
                 </button>
 
@@ -552,11 +655,11 @@ export default function PrioritiesView({
                       <span className="w-2 h-2 rounded-full bg-blue-500" /> Baixa
                     </div>
                     <div className="text-slate-900 dark:text-slate-100 font-extrabold text-sm mt-0.5">
-                      R$ {priorityStats.lowCost.toFixed(2).replace('.', ',')}
+                      R$ {stats.lowCost.toFixed(2).replace('.', ',')}
                     </div>
                   </div>
                   <span className="text-xs font-bold text-blue-800 dark:text-blue-300 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/60">
-                    {priorityStats.lowPercent}%
+                    {stats.lowPercent}%
                   </span>
                 </button>
               </div>
@@ -638,7 +741,7 @@ export default function PrioritiesView({
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 activeFilter === 'Alta' ? 'bg-rose-700 text-white' : 'bg-rose-200 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300'
               }`}>
-                {priorityStats.highPercent}%
+                {stats.highPercent}%
               </span>
             </button>
 
@@ -655,7 +758,7 @@ export default function PrioritiesView({
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 activeFilter === 'Média' ? 'bg-amber-600 text-white' : 'bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-300'
               }`}>
-                {priorityStats.medPercent}%
+                {stats.medPercent}%
               </span>
             </button>
 
@@ -672,7 +775,7 @@ export default function PrioritiesView({
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 activeFilter === 'Baixa' ? 'bg-blue-700 text-white' : 'bg-blue-200 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300'
               }`}>
-                {priorityStats.lowPercent}%
+                {stats.lowPercent}%
               </span>
             </button>
           </div>
@@ -750,7 +853,11 @@ export default function PrioritiesView({
                 const groupList = groupedItems[priorityKey];
                 if (groupList.length === 0 && activeFilter === 'Todas') return null;
                 const config = priorityConfigs[priorityKey];
-                const groupSubtotal = groupList.reduce((acc, item) => acc + (item.numPrice * item.qty), 0);
+                const groupSubtotal = groupList.reduce((acc, item) => {
+                  const price = typeof item.numPrice === 'number' && !isNaN(item.numPrice) ? item.numPrice : parseCurrency(item.price);
+                  const qty = typeof item.qty === 'number' && !isNaN(item.qty) && item.qty >= 0 ? item.qty : 1;
+                  return acc + ((isNaN(price) ? 0 : price) * qty);
+                }, 0);
 
                 return (
                   <div key={priorityKey} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
@@ -772,7 +879,7 @@ export default function PrioritiesView({
                           R$ {groupSubtotal.toFixed(2).replace('.', ',')}
                         </span>
                         <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
-                          ({priorityStats.totalCost > 0 ? Math.round((groupSubtotal / priorityStats.totalCost) * 100) : 0}%)
+                          ({stats.totalCost > 0 ? Math.round((groupSubtotal / stats.totalCost) * 100) : 0}%)
                         </span>
                       </div>
                     </div>
@@ -807,7 +914,7 @@ export default function PrioritiesView({
                                 <span>Unitário: <strong className="text-slate-700 dark:text-slate-300">{item.price}</strong></span>
                                 <span className="text-slate-300 dark:text-slate-600">•</span>
                                 <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
-                                  Total: R$ {(item.numPrice * item.qty).toFixed(2).replace('.', ',')}
+                                  Total: R$ {(((typeof item.numPrice === 'number' && !isNaN(item.numPrice) ? item.numPrice : parseCurrency(item.price)) || 0) * (typeof item.qty === 'number' && item.qty >= 0 ? item.qty : 1)).toFixed(2).replace('.', ',')}
                                 </span>
                               </div>
                             </div>
@@ -891,16 +998,8 @@ export default function PrioritiesView({
 
                             {/* Botão de Excluir */}
                             <button 
-                              onClick={() => {
-                      setSectorItemsMap(prev => {
-                        const next = { ...prev };
-                        if (next[item.sectorId]) {
-                          next[item.sectorId] = next[item.sectorId].filter(i => i.id !== item.id);
-                        }
-                        return next;
-                      });
-                    }}
-                              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                              onClick={() => removePriorityItem(item.id)}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
                               title="Remover produto da lista"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -999,7 +1098,7 @@ export default function PrioritiesView({
                     </div>
 
                     <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-                      Subtotal: R$ {(item.numPrice * item.qty).toFixed(2).replace('.', ',')}
+                      Subtotal: R$ {(((typeof item.numPrice === 'number' && !isNaN(item.numPrice) ? item.numPrice : parseCurrency(item.price)) || 0) * (typeof item.qty === 'number' && item.qty >= 0 ? item.qty : 1)).toFixed(2).replace('.', ',')}
                     </span>
                   </div>
                 </div>
@@ -1020,16 +1119,9 @@ export default function PrioritiesView({
                   </button>
                   
                   <button 
-                    onClick={() => {
-                      setSectorItemsMap(prev => {
-                        const next = { ...prev };
-                        if (next[item.sectorId]) {
-                          next[item.sectorId] = next[item.sectorId].filter(i => i.id !== item.id);
-                        }
-                        return next;
-                      });
-                    }}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-500 dark:hover:text-rose-400 transition-colors ml-1"
+                    onClick={() => removePriorityItem(item.id)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-500 dark:hover:text-rose-400 transition-colors ml-1 cursor-pointer"
+                    title="Remover produto da lista"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

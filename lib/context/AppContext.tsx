@@ -1,5 +1,8 @@
 "use client"
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { parseCurrency, formatCurrency } from '@/lib/utils';
+
+export const FILTER_IMG = "https://lh3.googleusercontent.com/aida-public/AB6AXuCT4JVy2QYtBYNeSK0tcgqaJ-yFmDtSkdhC6Bwsc_pfoSksrfT7AWr0dNTBjLITm4IyuZYX7kuqkVQXaItletFxRHAnIwE5AGN4y__0NOeuGoGUj6EO9EQ4092ZNAZn7ec7XsnXOCYLEswAFNN44918KeFUN67s4d_AB-WkFReHYLlgNwlfLncp5r-J0LxlgiNknQrCKOD9dXy8-nv5QnjAAoGpRuBGNhi0PtDnlEDqnBxexK5wIQVzHQ";
 
 export type PriorityType = 'Alta' | 'Média' | 'Baixa';
 export type ThemeMode = 'light' | 'dark';
@@ -55,8 +58,13 @@ export interface SectorItem {
   name: string;
   desc: string;
   price: string;
+  numPrice?: number;
   date: string;
   priority: 'Alta' | 'Média' | 'Baixa' | string;
+  qty?: number;
+  sectorId?: number;
+  sectorName?: string;
+  category?: string;
 }
 
 export interface Sector {
@@ -89,6 +97,10 @@ export interface PriorityItem {
   img: string;
   qty: number;
   priority: PriorityType;
+  sectorId?: number;
+  sectorName?: string;
+  desc?: string;
+  date?: string;
 }
 
 export interface AuthUser {
@@ -267,47 +279,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Client-side initialization and hydration
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let isCancelled = false;
+
+    async function initHydration() {
       try {
-        // 1. Clean slate check: if barreto_clean_slate_v3 is not set, wipe old demo data
-        const cleanApplied = localStorage.getItem('barreto_clean_slate_v3');
-        if (!cleanApplied) {
-          localStorage.removeItem('barreto-sectors');
-          localStorage.removeItem('barreto-sector-items');
-          localStorage.removeItem('barreto-shopping-items');
-          localStorage.removeItem('barreto-priority-items');
-          localStorage.removeItem('barreto-maintenances');
-          localStorage.setItem('barreto_clean_slate_v3', 'true');
-        } else {
-          const savedSectors = localStorage.getItem('barreto-sectors');
-          if (savedSectors) {
-            try { setRawSectors(JSON.parse(savedSectors)); } catch {}
-          }
+        // 1. Sempre carrega os dados salvos do usuário em localStorage (sem nunca resetar automaticamente)
+        let localSectors: Sector[] = [];
+        let localSectorItems: Record<number, SectorItem[]> = {};
 
-          const savedSectorItems = localStorage.getItem('barreto-sector-items');
-          if (savedSectorItems) {
-            try { setSectorItemsMap(JSON.parse(savedSectorItems)); } catch {}
-          }
+        const savedSectors = localStorage.getItem('barreto-sectors') || localStorage.getItem('barreto_db_sectors');
+        if (savedSectors) {
+          try {
+            const parsed = JSON.parse(savedSectors);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              localSectors = parsed;
+              setRawSectors(parsed);
+            }
+          } catch {}
+        }
 
-          const savedShopping = localStorage.getItem('barreto-shopping-items');
-          if (savedShopping) {
-            try { setShoppingItems(JSON.parse(savedShopping)); } catch {}
-          }
+        const savedSectorItems = localStorage.getItem('barreto-sector-items') || localStorage.getItem('barreto_db_sector_items');
+        if (savedSectorItems) {
+          try {
+            const parsed = JSON.parse(savedSectorItems);
+            if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+              localSectorItems = parsed;
+              setSectorItemsMap(parsed);
+            }
+          } catch {}
+        }
 
-          const savedPriority = localStorage.getItem('barreto-priority-items');
-          if (savedPriority) {
-            try { setPriorityItems(JSON.parse(savedPriority)); } catch {}
-          }
+        const savedShopping = localStorage.getItem('barreto-shopping-items');
+        if (savedShopping) {
+          try {
+            const parsed = JSON.parse(savedShopping);
+            if (Array.isArray(parsed)) setShoppingItems(parsed);
+          } catch {}
+        }
 
-          const savedMaint = localStorage.getItem('barreto-maintenances');
-          if (savedMaint) {
-            try { setMaintenances(JSON.parse(savedMaint)); } catch {}
-          }
+        const savedPriority = localStorage.getItem('barreto-priority-items');
+        if (savedPriority) {
+          try {
+            const parsed = JSON.parse(savedPriority);
+            if (Array.isArray(parsed)) setPriorityItems(parsed);
+          } catch {}
+        }
 
-          const savedCats = localStorage.getItem('barreto-shopping-categories');
-          if (savedCats) {
-            try { setShoppingCategories(JSON.parse(savedCats)); } catch {}
-          }
+        const savedMaint = localStorage.getItem('barreto-maintenances');
+        if (savedMaint) {
+          try {
+            const parsed = JSON.parse(savedMaint);
+            if (Array.isArray(parsed)) setMaintenances(parsed);
+          } catch {}
+        }
+
+        const savedCats = localStorage.getItem('barreto-shopping-categories');
+        if (savedCats) {
+          try {
+            const parsed = JSON.parse(savedCats);
+            if (Array.isArray(parsed)) setShoppingCategories(parsed);
+          } catch {}
         }
 
         // 2. Theme hydration
@@ -344,7 +375,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(false);
           }
         } else {
-          // Perfil único predefinido: bloqueia novos cadastros públicos e preserva o acesso exclusivo
           const defaultAuth: AuthUser = {
             name: 'Gabriel Veloso Barreto',
             pin: '1234',
@@ -378,7 +408,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             hydratedProfile = defaultProfile;
           }
         } else {
-          // Mantém o perfil único cadastrado
           const defaultProfile: BasicProfile = {
             fullName: 'Gabriel Veloso Barreto',
             residenceName: 'Residência Gabriel Barreto',
@@ -393,24 +422,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         }
 
-        // 5. Sincronização em segundo plano com o Servidor Central
-        // Garante que o mesmo perfil e senha funcionem em qualquer domínio (dev, preview, domínio próprio)
-        (async () => {
-          try {
-            const resAuth = await fetch('/api/auth');
-            if (resAuth.ok) {
-              const data = await resAuth.json();
-              if (data.success) {
-                if (data.authConfig && data.authConfig.pin) {
-                  // Se o servidor tem uma senha salva e o cliente tem o padrão '1234', adota a do servidor
-                  if (!hydratedAuth || hydratedAuth.pin === '1234' || data.authConfig.pin !== '1234') {
-                    setAuthConfig(data.authConfig);
+        // 5. Sincronização segura com o Servidor Central
+        try {
+          const activeUser = (hydratedAuth?.username || (typeof window !== 'undefined' ? localStorage.getItem('barreto-active-user') : null) || 'barreto').trim().toLowerCase();
+          const [resAuth, resData] = await Promise.allSettled([
+            fetch('/api/auth'),
+            fetch(`/api/data?username=${encodeURIComponent(activeUser)}`)
+          ]);
+
+          if (!isCancelled) {
+            if (resAuth.status === 'fulfilled' && resAuth.value.ok) {
+              const authData = await resAuth.value.json();
+              if (authData.success) {
+                if (authData.authConfig && authData.authConfig.pin) {
+                  if (!hydratedAuth || hydratedAuth.pin === '1234' || authData.authConfig.pin !== '1234') {
+                    setAuthConfig(authData.authConfig);
                     try {
-                      localStorage.setItem('barreto-auth-config', JSON.stringify(data.authConfig));
+                      localStorage.setItem('barreto-auth-config', JSON.stringify(authData.authConfig));
                     } catch {}
                   }
                 } else if (hydratedAuth && hydratedAuth.pin !== '1234') {
-                  // Se o cliente tem senha personalizada e o servidor não, envia ao servidor
                   fetch('/api/auth', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -422,50 +453,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   }).catch(() => {});
                 }
 
-                if (data.basicProfile) {
-                  setBasicProfile(data.basicProfile);
+                if (authData.basicProfile) {
+                  setBasicProfile(authData.basicProfile);
                   try {
-                    localStorage.setItem('barreto-basic-profile', JSON.stringify(data.basicProfile));
+                    localStorage.setItem('barreto-basic-profile', JSON.stringify(authData.basicProfile));
                   } catch {}
                 }
               }
             }
 
-            // Sync de dados de setores e manutenções se o cliente estiver vazio
-            const resData = await fetch('/api/data');
-            if (resData.ok) {
-              const data = await resData.json();
-              if (data.success) {
-                if (data.sectors && Array.isArray(data.sectors) && data.sectors.length > 0) {
-                  setRawSectors(prev => prev.length === 0 ? data.sectors : prev);
+            if (resData.status === 'fulfilled' && resData.value.ok) {
+              const serverData = await resData.value.json();
+              if (serverData.success) {
+                if (Array.isArray(serverData.sectors) && serverData.sectors.length > 0 && localSectors.length === 0) {
+                  setRawSectors(serverData.sectors);
+                  try {
+                    localStorage.setItem('barreto-sectors', JSON.stringify(serverData.sectors));
+                    localStorage.setItem('barreto_db_sectors', JSON.stringify(serverData.sectors));
+                  } catch {}
                 }
-                if (data.sectorItemsMap && Object.keys(data.sectorItemsMap).length > 0) {
-                  setSectorItemsMap(prev => Object.keys(prev).length === 0 ? data.sectorItemsMap : prev);
+                if (serverData.sectorItemsMap && Object.keys(serverData.sectorItemsMap).length > 0 && Object.keys(localSectorItems).length === 0) {
+                  setSectorItemsMap(serverData.sectorItemsMap);
+                  try {
+                    localStorage.setItem('barreto-sector-items', JSON.stringify(serverData.sectorItemsMap));
+                    localStorage.setItem('barreto_db_sector_items', JSON.stringify(serverData.sectorItemsMap));
+                  } catch {}
                 }
-                if (data.maintenances && Array.isArray(data.maintenances) && data.maintenances.length > 0) {
-                  setMaintenances(prev => prev.length === 0 ? data.maintenances : prev);
+                if (Array.isArray(serverData.maintenances) && serverData.maintenances.length > 0) {
+                  setMaintenances(prev => prev.length === 0 ? serverData.maintenances : prev);
                 }
-                if (data.shoppingItems && Array.isArray(data.shoppingItems) && data.shoppingItems.length > 0) {
-                  setShoppingItems(prev => prev.length === 0 ? data.shoppingItems : prev);
+                if (Array.isArray(serverData.shoppingItems) && serverData.shoppingItems.length > 0) {
+                  setShoppingItems(prev => prev.length === 0 ? serverData.shoppingItems : prev);
                 }
-                if (data.priorityItems && Array.isArray(data.priorityItems) && data.priorityItems.length > 0) {
-                  setPriorityItems(prev => prev.length === 0 ? data.priorityItems : prev);
+                if (Array.isArray(serverData.priorityItems) && serverData.priorityItems.length > 0) {
+                  setPriorityItems(prev => prev.length === 0 ? serverData.priorityItems : prev);
                 }
               }
             }
-          } catch (err) {
-            console.warn('Sync com servidor em segundo plano indisponível:', err);
           }
-        })();
+        } catch (syncErr) {
+          console.warn('Sync inicial com servidor finalizado/ignorado:', syncErr);
+        }
       } catch (err) {
-        console.error('Error hydrating localStorage state:', err);
+        console.error('Error hydrating state:', err);
       } finally {
-        setIsLoaded(true);
-        setIsAuthLoaded(true);
+        if (!isCancelled) {
+          setIsLoaded(true);
+          setIsAuthLoaded(true);
+        }
       }
-    }, 0);
+    }
 
-    return () => clearTimeout(timer);
+    initHydration();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Calculate sector items and total cost dynamically from sectorItemsMap
@@ -474,10 +517,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const items = sectorItemsMap[sec.id] || [];
       const count = items.length;
       const totalCost = items.reduce((acc, it) => {
-        const val = parseFloat(String(it.price).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-        return acc + val;
+        const val = parseCurrency(it.price);
+        const qty = typeof it.qty === 'number' && it.qty >= 0 ? it.qty : 1;
+        return acc + (val * qty);
       }, 0);
-      const costStr = `R$ ${totalCost.toFixed(2).replace('.', ',')}`;
+      const costStr = formatCurrency(totalCost);
 
       return {
         ...sec,
@@ -1006,19 +1050,156 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShoppingCategories(prev => prev.filter(c => c !== cat));
   };
 
-  // Priority Items Operations
-  const addPriorityItem = (item: Omit<PriorityItem, 'id'>) => {
-    setPriorityItems(prev => [...prev, { ...item, id: Date.now() }]);
+  // Combina itens dos setores e itens avulsos de prioridades
+  const allPriorityItems: PriorityItem[] = useMemo(() => {
+    const list: PriorityItem[] = [];
+    const seenIds = new Set<number>();
+
+    // 1. Itens vindos dos Setores (fonte principal de cadastro)
+    // Varre todas as entradas de sectorItemsMap para suportar chaves numéricas ou em string
+    Object.entries(sectorItemsMap).forEach(([secIdStr, secItems]) => {
+      const numSecId = Number(secIdStr);
+      const sectorObj = rawSectors.find(s => s.id === numSecId || String(s.id) === String(secIdStr));
+      const sectorName = sectorObj?.name || 'Setor';
+
+      if (Array.isArray(secItems)) {
+        secItems.forEach(si => {
+          if (!si || typeof si.id !== 'number') return;
+          seenIds.add(si.id);
+
+          const rawNum = typeof si.numPrice === 'number' && !isNaN(si.numPrice)
+            ? si.numPrice
+            : parseCurrency(si.price);
+          const numPrice = isNaN(rawNum) ? 0 : rawNum;
+          const qty = typeof si.qty === 'number' && !isNaN(si.qty) && si.qty >= 0 ? si.qty : 1;
+          const validPriority: PriorityType = (si.priority === 'Alta' || si.priority === 'Baixa') 
+            ? si.priority 
+            : 'Média';
+
+          list.push({
+            id: si.id,
+            name: si.name || 'Sem nome',
+            category: sectorName,
+            price: si.price || formatCurrency(numPrice),
+            numPrice,
+            img: FILTER_IMG,
+            qty,
+            priority: validPriority,
+            sectorId: numSecId,
+            sectorName,
+            desc: si.desc || '',
+            date: si.date || new Date().toLocaleDateString('pt-BR'),
+          });
+        });
+      }
+    });
+
+    // 2. Itens avulsos de priorityItems (se houver algum cadastrado diretamente)
+    if (Array.isArray(priorityItems)) {
+      priorityItems.forEach(pi => {
+        if (pi && typeof pi.id === 'number' && !seenIds.has(pi.id)) {
+          const rawNum = typeof pi.numPrice === 'number' && !isNaN(pi.numPrice)
+            ? pi.numPrice
+            : parseCurrency(pi.price);
+          const numPrice = isNaN(rawNum) ? 0 : rawNum;
+          const qty = typeof pi.qty === 'number' && !isNaN(pi.qty) && pi.qty >= 0 ? pi.qty : 1;
+          const validPriority: PriorityType = (pi.priority === 'Alta' || pi.priority === 'Baixa') 
+            ? pi.priority 
+            : 'Média';
+
+          list.push({
+            ...pi,
+            numPrice,
+            qty,
+            priority: validPriority,
+            category: pi.category || 'Geral',
+            price: pi.price || formatCurrency(numPrice),
+            img: pi.img || FILTER_IMG,
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [rawSectors, sectorItemsMap, priorityItems]);
+
+  // Priority Items Operations (Integrados com Setores)
+  const addPriorityItem = (item: Omit<PriorityItem, 'id'> & { sectorId?: number }) => {
+    const newId = Date.now();
+    const targetSectorId = item.sectorId || (rawSectors.length > 0 ? rawSectors[0].id : 1);
+    const numPrice = item.numPrice || parseCurrency(item.price);
+    const formattedPrice = item.price || formatCurrency(numPrice);
+
+    setSectorItemsMap(prev => {
+      const currentList = prev[targetSectorId] || [];
+      return {
+        ...prev,
+        [targetSectorId]: [
+          ...currentList,
+          {
+            id: newId,
+            name: item.name,
+            desc: item.desc || item.category || '',
+            price: formattedPrice,
+            date: new Date().toLocaleDateString('pt-BR'),
+            priority: item.priority || 'Média',
+            qty: item.qty || 1,
+            sectorId: targetSectorId,
+            sectorName: rawSectors.find(s => s.id === targetSectorId)?.name || 'Geral',
+          }
+        ]
+      };
+    });
+
+    setPriorityItems(prev => [...prev, { ...item, id: newId, price: formattedPrice, numPrice, qty: item.qty || 1 }]);
   };
 
   const removePriorityItem = (id: number) => {
+    setSectorItemsMap(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const secId of Object.keys(next)) {
+        const numSecId = Number(secId);
+        const list = next[numSecId] || [];
+        if (list.some(item => item.id === id)) {
+          next[numSecId] = list.filter(item => item.id !== id);
+          changed = true;
+          updateSector(numSecId, { items: Math.max(0, list.length - 1) });
+        }
+      }
+      return changed ? next : prev;
+    });
+
     setPriorityItems(prev => prev.filter(item => item.id !== id));
   };
 
   const updatePriorityItemQty = (id: number, delta: number) => {
+    setSectorItemsMap(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const secId of Object.keys(next)) {
+        const numSecId = Number(secId);
+        const list = next[numSecId] || [];
+        if (list.some(item => item.id === id)) {
+          next[numSecId] = list.map(item => {
+            if (item.id === id) {
+              const currentQty = typeof item.qty === 'number' ? item.qty : 1;
+              const newQty = Math.max(0, currentQty + delta);
+              return { ...item, qty: newQty };
+            }
+            return item;
+          });
+          changed = true;
+          break;
+        }
+      }
+      return changed ? next : prev;
+    });
+
     setPriorityItems(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(0, item.qty + delta);
+        const currentQty = typeof item.qty === 'number' ? item.qty : 1;
+        const newQty = Math.max(0, currentQty + delta);
         return { ...item, qty: newQty };
       }
       return item;
@@ -1026,6 +1207,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updatePriorityItemLevel = (id: number, priority: PriorityType) => {
+    setSectorItemsMap(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const secId of Object.keys(next)) {
+        const numSecId = Number(secId);
+        const list = next[numSecId] || [];
+        if (list.some(item => item.id === id)) {
+          next[numSecId] = list.map(item => {
+            if (item.id === id) {
+              return { ...item, priority };
+            }
+            return item;
+          });
+          changed = true;
+          break;
+        }
+      }
+      return changed ? next : prev;
+    });
+
     setPriorityItems(prev => prev.map(item => item.id === id ? { ...item, priority } : item));
   };
 
@@ -1052,23 +1253,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [shoppingItems]);
 
-  // Priority Stats
+  // Priority Stats - Calculado com todos os itens integrados dos setores e prioridades
   const priorityStats = useMemo(() => {
-    const totalItemsCount = priorityItems.length;
-    const totalUnitsCount = priorityItems.reduce((acc, item) => acc + item.qty, 0);
-    const totalCost = priorityItems.reduce((acc, item) => acc + (item.numPrice * item.qty), 0);
+    const getItemCost = (item: PriorityItem) => {
+      const rawPrice = typeof item.numPrice === 'number' && !isNaN(item.numPrice)
+        ? item.numPrice
+        : parseCurrency(item.price);
+      const price = isNaN(rawPrice) ? 0 : rawPrice;
+      const rawQty = typeof item.qty === 'number' && !isNaN(item.qty) && item.qty >= 0
+        ? item.qty
+        : 1;
+      return price * rawQty;
+    };
 
-    const highItems = priorityItems.filter(i => i.priority === 'Alta');
-    const highCost = highItems.reduce((acc, item) => acc + (item.numPrice * item.qty), 0);
-    const highUnits = highItems.reduce((acc, item) => acc + item.qty, 0);
+    const getItemUnits = (item: PriorityItem) => {
+      return typeof item.qty === 'number' && !isNaN(item.qty) && item.qty >= 0 ? item.qty : 1;
+    };
 
-    const medItems = priorityItems.filter(i => i.priority === 'Média');
-    const medCost = medItems.reduce((acc, item) => acc + (item.numPrice * item.qty), 0);
-    const medUnits = medItems.reduce((acc, item) => acc + item.qty, 0);
+    const totalItemsCount = allPriorityItems.length;
+    const totalUnitsCount = allPriorityItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+    const totalCost = allPriorityItems.reduce((acc, item) => acc + getItemCost(item), 0);
 
-    const lowItems = priorityItems.filter(i => i.priority === 'Baixa');
-    const lowCost = lowItems.reduce((acc, item) => acc + (item.numPrice * item.qty), 0);
-    const lowUnits = lowItems.reduce((acc, item) => acc + item.qty, 0);
+    const highItems = allPriorityItems.filter(i => i.priority === 'Alta');
+    const highCost = highItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const highUnits = highItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+
+    const medItems = allPriorityItems.filter(i => i.priority === 'Média');
+    const medCost = medItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const medUnits = medItems.reduce((acc, item) => acc + getItemUnits(item), 0);
+
+    const lowItems = allPriorityItems.filter(i => i.priority === 'Baixa');
+    const lowCost = lowItems.reduce((acc, item) => acc + getItemCost(item), 0);
+    const lowUnits = lowItems.reduce((acc, item) => acc + getItemUnits(item), 0);
 
     return {
       totalItemsCount,
@@ -1087,7 +1303,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lowCost,
       lowPercent: totalCost > 0 ? Math.round((lowCost / totalCost) * 100) : 0,
     };
-  }, [priorityItems]);
+  }, [allPriorityItems]);
 
   // Maintenance Operations
   const addMaintenance = (item: Omit<MaintenanceItem, 'id'>) => {
@@ -1323,7 +1539,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addShoppingCategory,
       updateShoppingCategory,
       deleteShoppingCategory,
-      priorityItems,
+      priorityItems: allPriorityItems,
       addPriorityItem,
       removePriorityItem,
       updatePriorityItemQty,
